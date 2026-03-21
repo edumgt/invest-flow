@@ -1,28 +1,70 @@
-# Vue + Node.js + PostgreSQL JWT Calendar SPA
+# calflow
 
-Vue(Vite) 프론트엔드와 Node.js 백엔드, PostgreSQL을 Docker로 묶은 오프캔버스 기반 SPA 예제입니다.
+> **Full-stack calendar SPA with JWT auth, Docker DevOps, and Airflow orchestration**
 
-## 기능
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/edumgt?style=flat-square&logo=github&label=Sponsor)](https://github.com/sponsors/edumgt)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Vue 3](https://img.shields.io/badge/Vue-3-42b883?style=flat-square&logo=vue.js)](https://vuejs.org)
+[![Node.js](https://img.shields.io/badge/Node.js-20-green?style=flat-square&logo=node.js)](https://nodejs.org)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ed?style=flat-square&logo=docker)](docker-compose.yml)
+[![Airflow](https://img.shields.io/badge/Airflow-2.10-017cee?style=flat-square&logo=apache-airflow)](docker-compose.airflow.yml)
 
-- JWT 로그인 인증
-- 사용자별 캘린더 일정 조회
-- Offcanvas 메뉴 기반 SPA UI
-- PostgreSQL 초기 스키마 + 테스트 계정 3개 자동 삽입
-- WSL 환경 개발 지원(Windows + WSL2)
-- GitLab CE + GitLab Runner Docker 구성
-- GitHub ↔ GitLab 이중 push 지원
-- Apache Airflow 기반 GitLab 파이프라인 오케스트레이션
+**calflow** is a production-ready template that bundles a Vue 3 / TUI Calendar SPA, a Node.js REST backend, PostgreSQL, and a complete DevOps pipeline — GitLab CE, GitLab Runner, GitHub ↔ GitLab dual-push, and Apache Airflow pipeline orchestration — all wired together with Docker Compose.
 
-## 구성
+---
 
-- `frontend` : Vue 3 + Vite + Tailwind + TUI Calendar
-- `backend` : Node.js 내장 HTTP 서버 + PostgreSQL(psql) + JWT(HMAC)
-- `postgres` : PostgreSQL 16
-- `gitlab` : GitLab CE 17 (Docker)
-- `gitlab-runner` : GitLab Runner (Docker executor)
-- `airflow` : Apache Airflow 2.10 (CeleryExecutor)
+## 💡 Why "calflow"?
 
-## 빠른 시작 (Docker — 앱 서버)
+| Component | Meaning |
+|-----------|---------|
+| **cal** | Calendar — the core feature of the application |
+| **flow** | Workflow / Airflow — the DevOps orchestration layer that controls the pipeline |
+
+The name is short (7 characters), memorable, and reflects both the **product** (a calendar app) and the **process** (automated workflow execution). It works equally well as a package name, a domain (`calflow.dev`), and a project brand.
+
+### Recommended repository names (ranked)
+
+| # | Name | Rationale |
+|---|------|-----------|
+| ⭐ 1 | **`calflow`** | Short, product + process, Airflow reference, globally unique, sponsor-friendly |
+| 2 | **`planflow`** | "Plan" broadens the use-case beyond calendars; still references workflow |
+| 3 | **`calstack`** | Emphasises the full-stack nature; easy to type |
+| 4 | **`vue-calflow`** | Explicit Vue branding for discoverability in Vue ecosystems |
+| 5 | **`calops`** | Calendar + DevOps; appeals to DevOps-focused audiences |
+
+---
+
+## ✨ Features
+
+- JWT login authentication (JWT 로그인 인증)
+- Per-user calendar event management (사용자별 캘린더 일정 조회)
+- Offcanvas SPA UI (Offcanvas 메뉴 기반 SPA UI)
+- PostgreSQL auto-seeded with 3 test accounts (초기 SQL 삽입)
+- WSL2 / Windows dev support (WSL 환경 개발 지원)
+- GitLab CE + GitLab Runner via Docker (GitLab CE + GitLab Runner Docker 구성)
+- GitHub ↔ GitLab dual-push (GitHub ↔ GitLab 이중 push 지원)
+- Apache Airflow pipeline orchestration (Airflow 기반 파이프라인 오케스트레이션)
+
+## 🏗️ Stack
+
+- `frontend`  : Vue 3 + Vite + Tailwind CSS + TUI Calendar
+- `backend`   : Node.js HTTP server + PostgreSQL + JWT (HMAC-SHA256)
+- `postgres`  : PostgreSQL 16
+- `gitlab`    : GitLab CE 17 (Docker)
+- `runner`    : GitLab Runner (Docker executor)
+- `airflow`   : Apache Airflow 2.10 (CeleryExecutor)
+
+---
+
+## 💖 Sponsor this project
+
+If **calflow** saves you time, please consider sponsoring the project. Your support keeps the template up-to-date with the latest Vue, Node.js, and Airflow releases and motivates adding new features such as multi-tenant support, event notifications, and a mobile-optimised view.
+
+[![Sponsor via GitHub](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?style=for-the-badge&logo=github)](https://github.com/sponsors/edumgt)
+
+---
+
+## 🚀 Quick start (Docker — app server)
 
 ```bash
 docker compose up --build -d

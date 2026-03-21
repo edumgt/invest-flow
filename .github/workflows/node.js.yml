@@ -57,16 +57,13 @@ jobs:
           exit 0
         fi
 
-        # 토큰을 URL에 직접 포함하지 않고 credential helper를 사용해 보안 유지
-        git config --global credential.helper store
-        echo "$(echo "$GITLAB_URL" | sed 's|https\?://||'):${GITLAB_TOKEN}" \
-          > /tmp/.git-credentials 2>/dev/null || true
-
         GITLAB_GIT_URL="${GITLAB_URL%/}/${GITLAB_PROJECT_PATH}.git"
-        # URL 스킴에 토큰 삽입 (HTTPS 방식)
+        # oauth2 토큰을 HTTPS URL에 인라인으로 포함 (Actions 환경 변수는 마스킹됨)
         AUTHED_URL="$(echo "$GITLAB_URL" | sed "s|://|://oauth2:${GITLAB_TOKEN}@|")/${GITLAB_PROJECT_PATH}.git"
 
         git remote add gitlab "$AUTHED_URL" 2>/dev/null || \
           git remote set-url gitlab "$AUTHED_URL"
         git push gitlab "refs/heads/main:refs/heads/main" --force
+        # 인증 URL이 담긴 remote를 즉시 제거해 후속 스텝에 노출되지 않도록 처리
+        git remote remove gitlab
         echo "GitLab 미러링 완료: $GITLAB_GIT_URL"
