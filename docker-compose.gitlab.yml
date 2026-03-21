@@ -1,0 +1,63 @@
+version: "3.9"
+
+# GitLab CE + GitLab Runner Docker Compose
+# Usage:
+#   docker compose -f docker-compose.gitlab.yml up -d
+#
+# GitLab 초기 root 비밀번호 확인:
+#   docker exec -it gitlab grep 'Password:' /etc/gitlab/initial_root_password
+#
+# GitLab UI: http://localhost:8080
+# GitLab SSH: ssh://git@localhost:2222
+
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:17.10.0-ce.0
+    container_name: gitlab
+    restart: unless-stopped
+    hostname: gitlab.local
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://gitlab.local:8080'
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222
+        gitlab_rails['time_zone'] = 'Asia/Seoul'
+        # 불필요한 기능 비활성화로 메모리 절감
+        prometheus_monitoring['enable'] = false
+        alertmanager['enable'] = false
+        grafana['enable'] = false
+        gitlab_exporter['enable'] = false
+        node_exporter['enable'] = false
+        redis_exporter['enable'] = false
+        postgres_exporter['enable'] = false
+    ports:
+      - "8080:8080"
+      - "2222:22"
+    volumes:
+      - gitlab_config:/etc/gitlab
+      - gitlab_logs:/var/log/gitlab
+      - gitlab_data:/var/opt/gitlab
+    shm_size: "256m"
+    networks:
+      - gitlab_net
+
+  gitlab-runner:
+    image: gitlab/gitlab-runner:alpine-v17.10.0
+    container_name: gitlab-runner
+    restart: unless-stopped
+    depends_on:
+      - gitlab
+    volumes:
+      - gitlab_runner_config:/etc/gitlab-runner
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - gitlab_net
+
+volumes:
+  gitlab_config:
+  gitlab_logs:
+  gitlab_data:
+  gitlab_runner_config:
+
+networks:
+  gitlab_net:
+    driver: bridge

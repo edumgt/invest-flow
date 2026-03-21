@@ -1,0 +1,22 @@
+# GitHub Sponsors / FUNDING configuration
+# Displays a "Sponsor" button on the repository page.
+# Add or remove platforms as needed.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-github-repository/displaying-a-sponsor-button-in-your-repository
+
+# GitHub Sponsors username (replace with actual GitHub Sponsors account)
+github: [edumgt]
+
+# Open Collective (optional — create a collective at https://opencollective.com)
+# open_collective: calflow
+
+# Ko-fi (optional — create a page at https://ko-fi.com)
+# ko_fi: calflow
+
+# Buy Me a Coffee (optional)
+# buy_me_a_coffee: calflow
+
+# Patreon (optional)
+# patreon: calflow
+
+# Custom sponsorship URL (optional — e.g. a personal donate page)
+# custom: https://calflow.dev/sponsor

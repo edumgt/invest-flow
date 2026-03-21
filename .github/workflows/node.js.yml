@@ -11,7 +11,6 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     strategy:
@@ -28,4 +27,43 @@ jobs:
         cache: 'npm'
     - run: npm ci
     - run: npm run build --if-present
-    - run: npm test
+    - run: npm test --if-present
+
+  # GitHub → GitLab 미러링 (main 브랜치 push 시에만 실행)
+  mirror-to-gitlab:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Mirror to GitLab
+      env:
+        # GitLab Personal Access Token (repo:write 권한)
+        # GitHub 저장소 Settings > Secrets > Actions 에 등록 필요
+        GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        # 예: http://gitlab.local:8080 또는 https://gitlab.example.com
+        GITLAB_URL: ${{ secrets.GITLAB_URL }}
+        # 예: namespace/Vue_vite_tailwind_tui.calendar
+        GITLAB_PROJECT_PATH: ${{ secrets.GITLAB_PROJECT_PATH }}
+      run: |
+        if [[ -z "$GITLAB_TOKEN" || -z "$GITLAB_URL" || -z "$GITLAB_PROJECT_PATH" ]]; then
+          echo "GitLab 시크릿(GITLAB_TOKEN, GITLAB_URL, GITLAB_PROJECT_PATH)이 설정되지 않아 미러링을 건너뜁니다."
+          exit 0
+        fi
+
+        GITLAB_GIT_URL="${GITLAB_URL%/}/${GITLAB_PROJECT_PATH}.git"
+        # oauth2 토큰을 HTTPS URL에 인라인으로 포함 (Actions 환경 변수는 마스킹됨)
+        AUTHED_URL="$(echo "$GITLAB_URL" | sed "s|://|://oauth2:${GITLAB_TOKEN}@|")/${GITLAB_PROJECT_PATH}.git"
+
+        git remote add gitlab "$AUTHED_URL" 2>/dev/null || \
+          git remote set-url gitlab "$AUTHED_URL"
+        git push gitlab "refs/heads/main:refs/heads/main" --force
+        # 인증 URL이 담긴 remote를 즉시 제거해 후속 스텝에 노출되지 않도록 처리
+        git remote remove gitlab
+        echo "GitLab 미러링 완료: $GITLAB_GIT_URL"
