@@ -2,29 +2,31 @@
   <div class="space-y-4">
 
     <!-- ── 상단 툴바 ───────────────────────────────────────────────────── -->
-    <div class="card-bk flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+    <div class="card-bk px-5 py-3 space-y-3">
       <!-- 범례 -->
       <div class="flex flex-wrap items-center gap-2">
         <span v-for="c in calendarList" :key="c.id"
-          class="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium"
-          :style="{ color: c.color, border: `1px solid ${c.color}44`, background: `${c.color}18` }">
+          class="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-full"
+          :style="{ color: c.color, border: `1px solid ${c.color}44`, background: `${c.color}12` }">
           <i :class="c.icon" class="text-xs"></i>{{ c.name }}
         </span>
       </div>
       <!-- 일정 추가 -->
-      <button class="btn-yellow flex items-center gap-2 px-4 py-2 text-sm" @click="showAddModal = true">
-        <i class="fa-solid fa-calendar-plus"></i> 일정 추가
-      </button>
+      <div class="flex justify-end">
+        <button class="btn-yellow flex items-center gap-2 px-4 py-2 text-sm" @click="showAddModal = true">
+          <i class="fa-solid fa-calendar-plus"></i> 일정 추가
+        </button>
+      </div>
     </div>
 
     <!-- ── 캘린더 컨테이너 ─────────────────────────────────────────────── -->
     <div class="card-bk overflow-hidden">
       <!-- 네비게이션 헤더 -->
-      <div class="flex items-center justify-between border-b border-bk-border px-5 py-3">
+      <div class="flex items-center justify-between border-b border-bk-border px-5 py-3 bg-bk-elevated">
         <button class="btn-ghost px-3 py-1.5 text-sm" @click="movePrev">
           <i class="fa-solid fa-chevron-left"></i>
         </button>
-        <span class="font-mono font-semibold text-bk-text">{{ currentTitle }}</span>
+        <span class="font-semibold text-bk-text text-base">{{ currentTitle }}</span>
         <button class="btn-ghost px-3 py-1.5 text-sm" @click="moveNext">
           <i class="fa-solid fa-chevron-right"></i>
         </button>
@@ -35,12 +37,12 @@
     <!-- ── 일정 추가 모달 ─────────────────────────────────────────────── -->
     <Teleport to="body">
       <div v-if="showAddModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-        <div class="card-bk w-full max-w-md">
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div class="card-bk w-full max-w-lg shadow-xl">
 
           <!-- 모달 헤더 -->
-          <div class="flex items-center justify-between border-b border-bk-border px-6 py-4">
-            <p class="label-caps">투자 일정 추가</p>
+          <div class="flex items-center justify-between border-b border-bk-border px-6 py-4 bg-bk-elevated">
+            <p class="font-semibold text-bk-text">금융 일정 추가</p>
             <button class="text-bk-text-3 hover:text-bk-text" @click="showAddModal = false">
               <i class="fa-solid fa-xmark text-lg"></i>
             </button>
@@ -57,13 +59,27 @@
               <div>
                 <label class="label-caps mb-2 block">이벤트 유형</label>
                 <select v-model="form.event_type" class="input-bk">
-                  <option value="buy">매수</option>
-                  <option value="sell">매도</option>
-                  <option value="dividend">배당</option>
-                  <option value="earnings">실적발표</option>
-                  <option value="rebalance">리밸런싱</option>
-                  <option value="watch">모니터링</option>
-                  <option value="general">일반</option>
+                  <optgroup label="매매">
+                    <option value="buy">매수</option>
+                    <option value="sell">매도</option>
+                    <option value="rebalance">리밸런싱</option>
+                    <option value="rights">유상증자</option>
+                    <option value="ipo">공모 청약</option>
+                  </optgroup>
+                  <optgroup label="수익">
+                    <option value="dividend">배당</option>
+                    <option value="bond">채권/이자</option>
+                  </optgroup>
+                  <optgroup label="분석/모니터링">
+                    <option value="earnings">실적발표</option>
+                    <option value="macro">거시경제 지표</option>
+                    <option value="watch">모니터링</option>
+                    <option value="fx">환율/외환</option>
+                  </optgroup>
+                  <optgroup label="기타">
+                    <option value="tax">세금/신고</option>
+                    <option value="general">일반</option>
+                  </optgroup>
                 </select>
               </div>
               <div>
@@ -77,8 +93,8 @@
             </div>
 
             <div>
-              <label class="label-caps mb-2 block">티커 (선택)</label>
-              <input v-model="form.ticker" class="input-bk font-mono" placeholder="예: 005930" />
+              <label class="label-caps mb-2 block">티커 / 지수 (선택)</label>
+              <input v-model="form.ticker" class="input-bk font-mono" placeholder="예: 005930, SPX, USD/KRW" />
             </div>
 
             <div class="grid grid-cols-2 gap-3">
@@ -95,10 +111,10 @@
             <div>
               <label class="label-caps mb-2 block">메모</label>
               <textarea v-model="form.notes" class="input-bk resize-none" rows="2"
-                placeholder="투자 근거, 목표가 등"></textarea>
+                placeholder="투자 근거, 목표가, 지표 예상치 등"></textarea>
             </div>
 
-            <p v-if="formError" class="flex items-center gap-1.5 text-sm text-red-400">
+            <p v-if="formError" class="flex items-center gap-1.5 text-sm text-red-500">
               <i class="fa-solid fa-circle-exclamation"></i>{{ formError }}
             </p>
 
@@ -145,25 +161,34 @@ const form = reactive({
 });
 
 const calendarList = [
-  { id:'buy',       name:'매수',     color:'#00C896', icon:'fa-solid fa-arrow-trend-up' },
-  { id:'sell',      name:'매도',     color:'#FF4D6D', icon:'fa-solid fa-arrow-trend-down' },
-  { id:'dividend',  name:'배당',     color:'#4B9EFF', icon:'fa-solid fa-money-bill-wave' },
-  { id:'earnings',  name:'실적발표', color:'#FF8C42', icon:'fa-solid fa-chart-bar' },
-  { id:'rebalance', name:'리밸런싱', color:'#9B72F4', icon:'fa-solid fa-scale-balanced' },
-  { id:'watch',     name:'모니터링', color:'#22D4F5', icon:'fa-solid fa-eye' },
-  { id:'general',   name:'일반',     color:'#6E8099', icon:'fa-solid fa-circle-dot' },
+  { id:'buy',       name:'매수',        color:'#16A34A', icon:'fa-solid fa-arrow-trend-up' },
+  { id:'sell',      name:'매도',        color:'#DC2626', icon:'fa-solid fa-arrow-trend-down' },
+  { id:'dividend',  name:'배당',        color:'#2563EB', icon:'fa-solid fa-money-bill-wave' },
+  { id:'earnings',  name:'실적발표',    color:'#EA580C', icon:'fa-solid fa-chart-bar' },
+  { id:'rebalance', name:'리밸런싱',    color:'#7C3AED', icon:'fa-solid fa-scale-balanced' },
+  { id:'watch',     name:'모니터링',    color:'#0891B2', icon:'fa-solid fa-eye' },
+  { id:'ipo',       name:'공모 청약',   color:'#DB2777', icon:'fa-solid fa-rocket' },
+  { id:'macro',     name:'거시경제',    color:'#0F766E', icon:'fa-solid fa-landmark' },
+  { id:'tax',       name:'세금/신고',   color:'#D97706', icon:'fa-solid fa-file-invoice-dollar' },
+  { id:'rights',    name:'유상증자',    color:'#0369A1', icon:'fa-solid fa-circle-plus' },
+  { id:'bond',      name:'채권/금리',   color:'#475569', icon:'fa-solid fa-percent' },
+  { id:'fx',        name:'환율/외환',   color:'#6D28D9', icon:'fa-solid fa-arrows-rotate' },
+  { id:'general',   name:'일반',        color:'#64748B', icon:'fa-solid fa-circle-dot' },
 ];
 
 function toSchedules(events: InvestmentEvent[]) {
-  return events.map(e => ({
-    id: String(e.id),
-    calendarId: calendarList.some(c => c.id === e.event_type) ? e.event_type : 'general',
-    title: e.ticker ? `[${e.ticker}] ${e.title}` : e.title,
-    category: 'time',
-    start: e.start,
-    end: e.end,
-    body: e.notes,
-  }));
+  return events.map(e => {
+    const cal = calendarList.find(c => c.id === e.event_type) ?? calendarList[calendarList.length - 1];
+    return {
+      id: String(e.id),
+      calendarId: cal.id,
+      title: e.ticker ? `[${e.ticker}] ${e.title}` : e.title,
+      category: 'time',
+      start: e.start,
+      end: e.end,
+      body: e.notes,
+    };
+  });
 }
 
 function updateTitle() {
@@ -187,7 +212,7 @@ onMounted(() => {
     })),
     template: {
       monthDayname: d =>
-        `<span style="color:#3A4F65;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">${d.label}</span>`,
+        `<span style="color:#94A3B8;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">${d.label}</span>`,
     },
   });
   calendar.createSchedules(toSchedules(props.events));

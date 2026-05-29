@@ -1,33 +1,20 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: calendar_postgres
-    environment:
-      POSTGRES_DB: calendar_app
-      POSTGRES_USER: calendar
-      POSTGRES_PASSWORD: calendar123
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-
   backend:
     build:
       context: ./backend
     container_name: calendar_backend
-    depends_on:
-      - postgres
     environment:
       PORT: 3000
       DATABASE_URL: postgresql://calendar:calendar123@postgres:5432/calendar_app
       JWT_SECRET: super-secret-jwt-key
-      CORS_ORIGIN: http://localhost:5173
+      CORS_ORIGIN: http://localhost:8302
     volumes:
       - ./backend:/app
       - /app/node_modules
     ports:
-      - "3000:3000"
+      - "8301:3000"
+    networks:
+      - shared-net
 
   frontend:
     build:
@@ -36,12 +23,13 @@ services:
     depends_on:
       - backend
     environment:
-      VITE_API_URL: http://localhost:3000
+      VITE_API_URL: http://localhost:8301
     volumes:
       - .:/app
       - /app/node_modules
     ports:
-      - "5173:5173"
+      - "8302:5173"
 
-volumes:
-  postgres_data:
+networks:
+  shared-net:
+    external: true

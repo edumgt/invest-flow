@@ -19,23 +19,25 @@
 
     <!-- ── 종목 테이블 ────────────────────────────────────────────────── -->
     <div class="card-bk overflow-hidden">
-      <div class="flex items-center justify-between border-b border-bk-border px-5 py-4">
-        <p class="label-caps">보유 종목</p>
+      <div class="flex items-center justify-between border-b border-bk-border px-5 py-4 bg-bk-elevated">
+        <p class="font-semibold text-bk-text">보유 종목</p>
         <button class="btn-yellow flex items-center gap-2 px-4 py-2 text-sm" @click="showAddModal = true">
           <i class="fa-solid fa-plus"></i> 종목 추가
         </button>
       </div>
 
       <div v-if="investments.length === 0" class="flex flex-col items-center justify-center py-16 text-bk-text-3">
-        <i class="fa-solid fa-briefcase text-4xl mb-3"></i>
-        <p class="text-sm">보유 종목이 없습니다</p>
+        <div class="flex h-16 w-16 items-center justify-center rounded-full bg-bk-elevated">
+          <i class="fa-solid fa-briefcase text-2xl"></i>
+        </div>
+        <p class="mt-4 text-sm font-medium text-bk-text-2">보유 종목이 없습니다</p>
         <p class="text-xs mt-1">위의 버튼으로 추가하세요</p>
       </div>
 
       <div v-else class="overflow-x-auto">
         <table class="w-full min-w-[600px]">
           <thead>
-            <tr class="border-b border-bk-border">
+            <tr class="border-b border-bk-border bg-bk-elevated">
               <th class="px-5 py-3 text-left label-caps">종목</th>
               <th class="px-3 py-3 text-center label-caps">유형</th>
               <th class="px-3 py-3 text-right label-caps">수량</th>
@@ -50,39 +52,33 @@
               :key="inv.id"
               class="border-b border-bk-border last:border-0 hover:bg-bk-elevated transition-colors"
             >
-              <!-- 종목명 + 티커 -->
               <td class="px-5 py-3">
                 <div class="flex items-center gap-2.5">
                   <i :class="[assetIcon(inv.asset_type), 'text-bk-text-3 w-4 text-center']"></i>
                   <div>
                     <p class="font-medium text-bk-text">{{ inv.asset_name }}</p>
-                    <p class="font-mono text-xs text-bk-yellow">{{ inv.ticker }}</p>
+                    <p class="font-mono text-xs text-bk-yellow font-semibold">{{ inv.ticker }}</p>
                   </div>
                 </div>
               </td>
-              <!-- 자산 유형 배지 -->
               <td class="px-3 py-3 text-center">
-                <span class="px-2 py-0.5 text-xs font-semibold" :class="assetClass(inv.asset_type)">
+                <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="assetClass(inv.asset_type)">
                   {{ assetKo(inv.asset_type) }}
                 </span>
               </td>
-              <!-- 수량 -->
               <td class="px-3 py-3 text-right font-mono text-sm text-bk-text">
                 {{ inv.quantity.toLocaleString() }}
               </td>
-              <!-- 평균단가 -->
               <td class="px-3 py-3 text-right font-mono text-sm text-bk-text-2">
                 {{ inv.avg_price.toLocaleString() }}
                 <span class="ml-0.5 text-xs text-bk-text-3">{{ inv.currency }}</span>
               </td>
-              <!-- 평가액 -->
               <td class="px-5 py-3 text-right">
                 <p class="font-mono text-sm font-bold text-bk-text">{{ totalVal(inv) }}</p>
               </td>
-              <!-- 삭제 -->
               <td class="px-3 py-3 text-center">
                 <button
-                  class="text-bk-text-3 hover:text-red-400 transition-colors"
+                  class="text-bk-text-3 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-50"
                   @click="remove(inv.id)"
                 >
                   <i class="fa-solid fa-xmark"></i>
@@ -97,13 +93,13 @@
     <!-- ── 종목 추가 모달 ─────────────────────────────────────────────── -->
     <Teleport to="body">
       <div v-if="showAddModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-        <div class="card-bk w-full max-w-md">
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div class="w-full max-w-md rounded-xl border border-bk-border bg-white shadow-modal">
 
-          <div class="flex items-center justify-between border-b border-bk-border px-6 py-4">
-            <p class="label-caps">종목 추가</p>
-            <button class="text-bk-text-3 hover:text-bk-text" @click="showAddModal = false">
-              <i class="fa-solid fa-xmark text-lg"></i>
+          <div class="flex items-center justify-between border-b border-bk-border px-6 py-4 bg-bk-elevated rounded-t-xl">
+            <p class="font-semibold text-bk-text">종목 추가</p>
+            <button class="rounded-md p-1 text-bk-text-3 hover:bg-bk-border hover:text-bk-text transition-colors" @click="showAddModal = false">
+              <i class="fa-solid fa-xmark text-base"></i>
             </button>
           </div>
 
@@ -150,7 +146,7 @@
               </div>
             </div>
 
-            <p v-if="formError" class="flex items-center gap-1.5 text-sm text-red-400">
+            <p v-if="formError" class="flex items-center gap-1.5 text-sm text-red-500">
               <i class="fa-solid fa-circle-exclamation"></i>{{ formError }}
             </p>
 
@@ -210,22 +206,23 @@ function totalVal(inv: Investment) {
 }
 
 function assetIcon(t: string) {
-  return { stock:'fa-solid fa-chart-line', etf:'fa-solid fa-layer-group',
-           bond:'fa-solid fa-file-contract', crypto:'fa-brands fa-bitcoin',
-           reit:'fa-solid fa-building' }[t] ?? 'fa-solid fa-circle-dot';
+  return ({ stock:'fa-solid fa-chart-line', etf:'fa-solid fa-layer-group',
+            bond:'fa-solid fa-file-contract', crypto:'fa-brands fa-bitcoin',
+            reit:'fa-solid fa-building' } as Record<string,string>)[t] ?? 'fa-solid fa-circle-dot';
 }
 
 function assetKo(t: string) {
-  return { stock:'주식', etf:'ETF', bond:'채권', crypto:'코인', reit:'리츠' }[t] ?? t;
+  return ({ stock:'주식', etf:'ETF', bond:'채권', crypto:'코인', reit:'리츠' } as Record<string,string>)[t] ?? t;
 }
 
 function assetClass(t: string) {
-  return { stock:'text-bk-buy border border-bk-buy/30 bg-bk-buy/10',
-           etf:'text-bk-dividend border border-bk-dividend/30 bg-bk-dividend/10',
-           bond:'text-yellow-400 border border-yellow-400/30 bg-yellow-400/10',
-           crypto:'text-bk-earnings border border-bk-earnings/30 bg-bk-earnings/10',
-           reit:'text-bk-rebalance border border-bk-rebalance/30 bg-bk-rebalance/10' }[t]
-         ?? 'text-bk-text-2 border border-bk-border';
+  return ({
+    stock: 'bg-green-50 text-green-700 border border-green-200',
+    etf:   'bg-blue-50 text-blue-700 border border-blue-200',
+    bond:  'bg-amber-50 text-amber-700 border border-amber-200',
+    crypto:'bg-orange-50 text-orange-700 border border-orange-200',
+    reit:  'bg-purple-50 text-purple-700 border border-purple-200',
+  } as Record<string,string>)[t] ?? 'bg-bk-elevated text-bk-text-2';
 }
 
 async function submitAdd() {

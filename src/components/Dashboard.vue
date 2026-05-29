@@ -16,7 +16,7 @@
 
       <!-- ── 보유 종목 ────────────────────────────────────────────────── -->
       <div class="card-bk">
-        <div class="flex items-center justify-between border-b border-bk-border px-5 py-4">
+        <div class="flex items-center justify-between border-b border-bk-border px-5 py-4 bg-bk-elevated">
           <p class="label-caps">보유 종목</p>
           <button class="flex items-center gap-1 text-xs text-bk-yellow hover:underline" @click="$emit('goto', 'portfolio')">
             전체 보기 <i class="fa-solid fa-arrow-right text-xs"></i>
@@ -30,10 +30,10 @@
 
         <table v-else class="w-full">
           <thead>
-            <tr class="border-b border-bk-border">
-              <th class="px-5 py-2 text-left label-caps text-xs">종목</th>
-              <th class="px-3 py-2 text-right label-caps text-xs">수량</th>
-              <th class="px-5 py-2 text-right label-caps text-xs">평균단가</th>
+            <tr class="border-b border-bk-border bg-bk-elevated">
+              <th class="px-5 py-2 text-left label-caps">종목</th>
+              <th class="px-3 py-2 text-right label-caps">수량</th>
+              <th class="px-5 py-2 text-right label-caps">평균단가</th>
             </tr>
           </thead>
           <tbody>
@@ -65,7 +65,7 @@
 
       <!-- ── 다가오는 일정 ────────────────────────────────────────────── -->
       <div class="card-bk">
-        <div class="flex items-center justify-between border-b border-bk-border px-5 py-4">
+        <div class="flex items-center justify-between border-b border-bk-border px-5 py-4 bg-bk-elevated">
           <p class="label-caps">다가오는 일정</p>
           <button class="flex items-center gap-1 text-xs text-bk-yellow hover:underline" @click="$emit('goto', 'calendar')">
             캘린더 <i class="fa-solid fa-arrow-right text-xs"></i>
@@ -83,10 +83,9 @@
             :key="ev.id"
             class="flex items-start gap-3 px-5 py-3 hover:bg-bk-elevated transition-colors"
           >
-            <!-- 이벤트 타입 아이콘 -->
             <span
-              class="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center text-xs"
-              :style="{ color: eventColor(ev.event_type), border: `1px solid ${eventColor(ev.event_type)}22`, background: `${eventColor(ev.event_type)}18` }"
+              class="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center text-xs rounded-full"
+              :style="{ color: eventColor(ev.event_type), border: `1px solid ${eventColor(ev.event_type)}40`, background: `${eventColor(ev.event_type)}12` }"
             >
               <i :class="eventIcon(ev.event_type)"></i>
             </span>
@@ -98,12 +97,12 @@
 
             <div class="flex flex-shrink-0 items-center gap-1.5">
               <span v-if="ev.is_ai_recommended"
-                class="rounded px-1.5 py-0.5 text-xs font-bold"
-                style="background: rgba(245,197,24,0.12); color: #F5C518;">
+                class="rounded-full px-1.5 py-0.5 text-xs font-bold"
+                style="background: rgba(29,111,232,0.10); color: #1D6FE8; border: 1px solid rgba(29,111,232,0.25);">
                 AI
               </span>
               <span
-                class="rounded px-1.5 py-0.5 text-xs"
+                class="rounded px-1.5 py-0.5 text-xs font-medium"
                 :class="priorityClass(ev.priority)"
               >{{ ev.priority }}</span>
             </div>
@@ -114,7 +113,7 @@
 
     <!-- ── AI 추천 배너 ────────────────────────────────────────────────── -->
     <div class="card-bk flex items-center justify-between gap-4 p-5"
-         style="border-left: 3px solid #F5C518;">
+         style="border-left: 3px solid #1D6FE8;">
       <div class="flex items-center gap-4">
         <i class="fa-solid fa-robot text-2xl text-bk-yellow"></i>
         <div>
@@ -188,21 +187,32 @@ function assetIcon(type: string) {
 }
 
 const EVENT_COLORS: Record<string, string> = {
-  buy:'#00C896', sell:'#FF4D6D', dividend:'#4B9EFF',
-  earnings:'#FF8C42', rebalance:'#9B72F4', watch:'#22D4F5', general:'#6E8099',
+  buy:'#16A34A', sell:'#DC2626', dividend:'#2563EB',
+  earnings:'#EA580C', rebalance:'#7C3AED', watch:'#0891B2',
+  ipo:'#DB2777', macro:'#0F766E', tax:'#D97706',
+  rights:'#0369A1', bond:'#475569', fx:'#6D28D9',
+  general:'#64748B',
 };
 
 function eventColor(type: string) { return EVENT_COLORS[type] ?? EVENT_COLORS.general; }
 
 function eventIcon(type: string) {
-  return { buy:'fa-solid fa-arrow-trend-up', sell:'fa-solid fa-arrow-trend-down',
-           dividend:'fa-solid fa-money-bill-wave', earnings:'fa-solid fa-chart-bar',
-           rebalance:'fa-solid fa-scale-balanced', watch:'fa-solid fa-eye',
-           general:'fa-solid fa-circle-dot' }[type] ?? 'fa-solid fa-circle-dot';
+  return ({
+    buy:'fa-solid fa-arrow-trend-up', sell:'fa-solid fa-arrow-trend-down',
+    dividend:'fa-solid fa-money-bill-wave', earnings:'fa-solid fa-chart-bar',
+    rebalance:'fa-solid fa-scale-balanced', watch:'fa-solid fa-eye',
+    ipo:'fa-solid fa-rocket', macro:'fa-solid fa-landmark',
+    tax:'fa-solid fa-file-invoice-dollar', rights:'fa-solid fa-circle-plus',
+    bond:'fa-solid fa-percent', fx:'fa-solid fa-arrows-rotate',
+    general:'fa-solid fa-circle-dot',
+  } as Record<string,string>)[type] ?? 'fa-solid fa-circle-dot';
 }
 
 function priorityClass(p: string) {
-  return { HIGH:'bg-red-900/40 text-red-400', MEDIUM:'bg-yellow-900/30 text-yellow-500',
-           LOW:'bg-bk-elevated text-bk-text-3' }[p] ?? 'bg-bk-elevated text-bk-text-3';
+  return ({
+    HIGH:   'bg-red-50 text-red-600 border border-red-200',
+    MEDIUM: 'bg-amber-50 text-amber-600 border border-amber-200',
+    LOW:    'bg-slate-100 text-slate-500',
+  } as Record<string,string>)[p] ?? 'bg-slate-100 text-slate-500';
 }
 </script>

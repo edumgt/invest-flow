@@ -14,6 +14,17 @@
 
 ---
 
+![alt text](image.png)
+
+![alt text](image-1.png)
+
+![alt text](image-2.png)
+
+![alt text](image-3.png)
+
+
+---
+
 ## 주요 기능
 
 | 기능 | 설명 |
@@ -134,3 +145,5 @@ npm run dev
 - **GitLab CI**: `.gitlab-ci.yml` — 빌드·테스트·배포 파이프라인
 - **Airflow**: `docker-compose.airflow.yml` — 정기 파이프라인 트리거
 - **이중 Push**: `scripts/setup-dual-remote.sh` — GitHub ↔ GitLab 동기화
+
+

@@ -2,40 +2,45 @@
   <div class="space-y-4">
 
     <!-- ── 헤더 배너 ─────────────────────────────────────────────────── -->
-    <div class="card-bk flex items-center justify-between gap-4 p-6"
-         style="border-left: 3px solid #F5C518;">
-      <div class="flex items-center gap-5">
-        <i class="fa-solid fa-robot text-3xl text-bk-yellow"></i>
-        <div>
-          <p class="text-lg font-bold text-bk-text">AI 투자 비서</p>
-          <p class="mt-0.5 text-sm text-bk-text-2">
-            포트폴리오를 분석하여 최적 투자 액션 5개를 제안합니다
-          </p>
+    <div class="card-bk overflow-hidden">
+      <div class="flex items-center justify-between gap-4 p-6"
+           style="background: linear-gradient(135deg, #0F6CBD 0%, #5C2E91 100%);">
+        <div class="flex items-center gap-5">
+          <div class="flex h-14 w-14 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+            <i class="fa-solid fa-robot text-2xl text-white"></i>
+          </div>
+          <div>
+            <p class="text-lg font-bold text-white">AI 투자 비서</p>
+            <p class="mt-0.5 text-sm text-white/75">
+              포트폴리오를 분석하여 최적 투자 액션 5개를 제안합니다
+            </p>
+          </div>
         </div>
+        <button
+          :disabled="loading"
+          class="flex flex-shrink-0 items-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-bk-yellow shadow hover:bg-bk-elevated transition-colors disabled:opacity-50"
+          @click="fetchRecommendations"
+        >
+          <i v-if="loading" class="fa-solid fa-spinner fa-spin"></i>
+          <i v-else class="fa-solid fa-wand-magic-sparkles"></i>
+          {{ loading ? 'AI 분석 중...' : 'AI 분석 시작' }}
+        </button>
       </div>
-      <button
-        :disabled="loading"
-        class="btn-yellow flex flex-shrink-0 items-center gap-2 px-5 py-3 text-sm font-bold"
-        @click="fetchRecommendations"
-      >
-        <i v-if="loading" class="fa-solid fa-spinner fa-spin"></i>
-        <i v-else class="fa-solid fa-wand-magic-sparkles"></i>
-        {{ loading ? 'AI 분석 중...' : 'AI 분석 시작' }}
-      </button>
     </div>
 
     <!-- ── 에러 ──────────────────────────────────────────────────────── -->
-    <div v-if="error" class="card-bk flex items-center gap-3 p-4 text-sm text-red-400"
-         style="border-left: 3px solid #FF4D6D;">
-      <i class="fa-solid fa-triangle-exclamation"></i>
+    <div v-if="error" class="card-bk flex items-center gap-3 p-4 text-sm text-red-600 border-red-200">
+      <i class="fa-solid fa-triangle-exclamation text-red-400"></i>
       {{ error }}
     </div>
 
     <!-- ── 빈 상태 ────────────────────────────────────────────────────── -->
     <div v-if="!loading && !error && recommendations.length === 0"
       class="card-bk flex flex-col items-center justify-center py-20">
-      <i class="fa-solid fa-robot text-5xl text-bk-text-3"></i>
-      <p class="mt-4 font-medium text-bk-text-2">추천 일정이 없습니다</p>
+      <div class="flex h-20 w-20 items-center justify-center rounded-full bg-bk-elevated">
+        <i class="fa-solid fa-robot text-4xl text-bk-text-3"></i>
+      </div>
+      <p class="mt-5 font-semibold text-bk-text">추천 일정이 없습니다</p>
       <p class="mt-1 text-sm text-bk-text-3">위의 "AI 분석 시작" 버튼을 눌러 추천을 받아보세요</p>
     </div>
 
@@ -43,15 +48,15 @@
     <div v-if="loading" class="space-y-3">
       <div v-for="i in 5" :key="i" class="card-bk animate-pulse p-5">
         <div class="flex items-center gap-4">
-          <div class="h-10 w-10 rounded bg-bk-elevated"></div>
+          <div class="h-12 w-12 rounded-xl bg-bk-elevated"></div>
           <div class="flex-1 space-y-2">
-            <div class="h-4 w-2/5 rounded bg-bk-elevated"></div>
-            <div class="h-3 w-1/4 rounded bg-bk-elevated"></div>
+            <div class="h-4 w-2/5 rounded-full bg-bk-elevated"></div>
+            <div class="h-3 w-1/4 rounded-full bg-bk-elevated"></div>
           </div>
         </div>
         <div class="mt-4 space-y-2">
-          <div class="h-3 rounded bg-bk-elevated"></div>
-          <div class="h-3 w-4/5 rounded bg-bk-elevated"></div>
+          <div class="h-3 rounded-full bg-bk-elevated"></div>
+          <div class="h-3 w-4/5 rounded-full bg-bk-elevated"></div>
         </div>
       </div>
     </div>
@@ -61,46 +66,41 @@
       <div
         v-for="(rec, idx) in recommendations"
         :key="idx"
-        class="card-bk transition-colors hover:border-bk-border-2"
+        class="card-bk transition-shadow hover:shadow-lifted"
       >
         <!-- 카드 헤더 -->
         <div class="flex items-center justify-between gap-4 border-b border-bk-border px-5 py-4">
           <div class="flex items-center gap-4">
-            <!-- 액션 아이콘 -->
             <span
-              class="flex h-10 w-10 flex-shrink-0 items-center justify-center text-sm font-bold"
-              :style="{ color: actionColor(rec.action), border: `1px solid ${actionColor(rec.action)}55`, background: `${actionColor(rec.action)}18` }"
+              class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold"
+              :style="{ color: actionColor(rec.action), background: `${actionColor(rec.action)}15` }"
             >
               <i :class="actionIcon(rec.action)"></i>
             </span>
 
             <div>
               <div class="flex flex-wrap items-center gap-2">
-                <span class="font-bold text-bk-text">{{ rec.asset_name }}</span>
-                <span class="font-mono text-xs text-bk-text-3">{{ rec.ticker }}</span>
-                <!-- 액션 배지 -->
+                <span class="font-semibold text-bk-text">{{ rec.asset_name }}</span>
+                <span class="font-mono text-xs text-bk-text-3 bg-bk-elevated px-1.5 py-0.5 rounded">{{ rec.ticker }}</span>
                 <span
-                  class="px-2 py-0.5 text-xs font-bold"
-                  :style="{ color: actionColor(rec.action), border: `1px solid ${actionColor(rec.action)}44`, background: `${actionColor(rec.action)}18` }"
+                  class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                  :style="{ color: actionColor(rec.action), background: `${actionColor(rec.action)}15` }"
                 >{{ rec.category }}</span>
-                <!-- 우선순위 -->
-                <span class="px-2 py-0.5 text-xs" :class="priorityClass(rec.priority)">
+                <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="priorityClass(rec.priority)">
                   {{ rec.priority }}
                 </span>
-                <!-- AI 등록 완료 -->
                 <span v-if="scheduled.has(idx)"
-                  class="flex items-center gap-1 px-2 py-0.5 text-xs font-bold"
-                  style="color:#00C896; background: rgba(0,200,150,0.12); border: 1px solid rgba(0,200,150,0.3);">
+                  class="flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                  style="color:#107C10; background: rgba(16,124,16,0.10);">
                   <i class="fa-solid fa-circle-check"></i> 등록됨
                 </span>
               </div>
               <p class="mt-0.5 text-sm text-bk-text-2">
-                추천 일정 &nbsp;<span class="font-mono text-bk-yellow">{{ rec.suggested_date }}</span>
+                추천 일정 &nbsp;<span class="font-mono font-semibold text-bk-yellow">{{ rec.suggested_date }}</span>
               </p>
             </div>
           </div>
 
-          <!-- 캘린더 추가 버튼 -->
           <button
             v-if="!scheduled.has(idx)"
             :disabled="scheduling === idx"
@@ -114,16 +114,17 @@
         </div>
 
         <!-- 추천 이유 -->
-        <div class="bg-bk-surface px-5 py-4">
+        <div class="px-5 py-4 bg-bk-elevated/50">
           <p class="label-caps mb-2">추천 근거</p>
           <p class="text-sm leading-relaxed text-bk-text-2">{{ rec.reason }}</p>
         </div>
       </div>
 
       <!-- 전체 일정 등록 -->
-      <div class="flex items-center justify-between border-t border-bk-border pt-4">
-        <p class="text-sm text-bk-text-3">
-          {{ scheduled.size }} / {{ recommendations.length }} 등록됨
+      <div class="flex items-center justify-between rounded-lg border border-bk-border bg-white p-4">
+        <p class="text-sm text-bk-text-2">
+          <span class="font-semibold text-bk-yellow">{{ scheduled.size }}</span>
+          / {{ recommendations.length }} 등록됨
         </p>
         <button
           :disabled="allScheduled || bulkScheduling"
@@ -236,15 +237,19 @@ async function scheduleAll() {
 }
 
 const ACTION_COLORS: Record<string, string> = {
-  BUY: '#00C896', SELL: '#FF4D6D', REBALANCE: '#9B72F4', WATCH: '#22D4F5',
+  BUY: '#107C10', SELL: '#D13438', REBALANCE: '#5C2E91', WATCH: '#008272',
 };
-function actionColor(a: string) { return ACTION_COLORS[a] ?? '#6E8099'; }
+function actionColor(a: string) { return ACTION_COLORS[a] ?? '#605E5C'; }
 function actionIcon(a: string) {
-  return { BUY:'fa-solid fa-arrow-trend-up', SELL:'fa-solid fa-arrow-trend-down',
-           REBALANCE:'fa-solid fa-scale-balanced', WATCH:'fa-solid fa-eye' }[a] ?? 'fa-solid fa-circle-dot';
+  return ({ BUY:'fa-solid fa-arrow-trend-up', SELL:'fa-solid fa-arrow-trend-down',
+            REBALANCE:'fa-solid fa-scale-balanced', WATCH:'fa-solid fa-eye' } as Record<string,string>)[a]
+    ?? 'fa-solid fa-circle-dot';
 }
 function priorityClass(p: string) {
-  return { HIGH:'bg-red-900/40 text-red-400', MEDIUM:'bg-yellow-900/30 text-yellow-500',
-           LOW:'bg-bk-elevated text-bk-text-3' }[p] ?? 'bg-bk-elevated text-bk-text-3';
+  return ({
+    HIGH:   'bg-red-50 text-red-700 border border-red-200',
+    MEDIUM: 'bg-amber-50 text-amber-700 border border-amber-200',
+    LOW:    'bg-bk-elevated text-bk-text-3',
+  } as Record<string,string>)[p] ?? 'bg-bk-elevated text-bk-text-3';
 }
 </script>

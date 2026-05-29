@@ -4,10 +4,10 @@
 
 @layer base {
   html {
-    font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 17px;
-    background-color: #07090D;
-    color: #DDE4EE;
+    font-family: 'Segoe UI Variable', 'Segoe UI', 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 16px;
+    background-color: #FAF9F8;
+    color: #201F1E;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -23,97 +23,102 @@
   }
 
   ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: #0C1018; }
-  ::-webkit-scrollbar-thumb { background: #1E2B3C; border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #253347; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #C8C6C4; border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: #A19F9D; }
 }
 
-/* ── TUI Calendar dark theme overrides ─────────────────────────────────── */
+/* ── TUI Calendar — Copilot light theme ────────────────────────────────── */
 .tui-full-calendar-layout,
 .tui-full-calendar-month,
 .tui-full-calendar-month-week-item,
 .tui-full-calendar-weekday-schedule-container {
-  background-color: #111720 !important;
-  color: #DDE4EE !important;
+  background-color: #FFFFFF !important;
+  color: #201F1E !important;
 }
 
 .tui-full-calendar-month-dayname {
-  background-color: #0C1018 !important;
-  border-bottom: 1px solid #1E2B3C !important;
+  background-color: #FAF9F8 !important;
+  border-bottom: 1px solid #E1DFDD !important;
 }
 
 .tui-full-calendar-month-dayname-item span {
-  color: #6E8099 !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.05em !important;
+  color: #A19F9D !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
 }
 
 .tui-full-calendar-month-week-item {
-  border-bottom: 1px solid #1E2B3C !important;
+  border-bottom: 1px solid #E1DFDD !important;
 }
 
 .tui-full-calendar-weekday-grid-line {
-  border-right: 1px solid #1E2B3C !important;
+  border-right: 1px solid #E1DFDD !important;
 }
 
 .tui-full-calendar-month-more-title,
 .tui-full-calendar-month-more-header {
-  background-color: #182030 !important;
-  border-bottom: 1px solid #1E2B3C !important;
-  color: #DDE4EE !important;
+  background-color: #FAF9F8 !important;
+  border-bottom: 1px solid #E1DFDD !important;
+  color: #201F1E !important;
 }
 
 .tui-full-calendar-month-more {
-  background-color: #111720 !important;
-  border: 1px solid #1E2B3C !important;
+  background-color: #FFFFFF !important;
+  border: 1px solid #E1DFDD !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.10) !important;
 }
 
 .tui-full-calendar-weekday-number span {
-  color: #6E8099 !important;
+  color: #605E5C !important;
+  font-size: 13px !important;
 }
 
 .tui-full-calendar-weekday-today .tui-full-calendar-weekday-number span {
-  background-color: #F5C518 !important;
-  color: #07090D !important;
+  background-color: #0F6CBD !important;
+  color: #FFFFFF !important;
   border-radius: 50% !important;
   width: 26px !important;
   height: 26px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
+  font-weight: 700 !important;
 }
 
 .tui-full-calendar-weekday-schedule {
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  border-radius: 2px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  border-radius: 4px !important;
+  padding: 1px 4px !important;
 }
 
 .tui-full-calendar-month-more-schedule {
-  color: #DDE4EE !important;
+  color: #201F1E !important;
 }
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 @layer utilities {
   .label-caps {
-    @apply text-xs font-semibold uppercase tracking-widest text-bk-text-2;
+    @apply text-xs font-semibold uppercase tracking-widest text-bk-text-3;
   }
   .card-bk {
-    @apply bg-bk-card border border-bk-border;
+    @apply bg-bk-card border border-bk-border rounded-lg shadow-card;
   }
   .input-bk {
-    @apply w-full bg-bk-surface border border-bk-border text-bk-text placeholder-bk-text-3
-           px-3 py-2 text-base focus:outline-none focus:border-bk-yellow
-           focus:ring-1 focus:ring-bk-yellow transition-colors;
+    @apply w-full bg-white border border-bk-border text-bk-text placeholder-bk-text-3
+           px-3 py-2 text-sm focus:outline-none focus:border-bk-yellow
+           focus:ring-2 focus:ring-bk-yellow/20 transition-all rounded-md;
   }
   .btn-yellow {
-    @apply bg-bk-yellow text-bk-bg font-bold hover:bg-bk-yellow-hover
-           transition-colors disabled:opacity-40;
+    @apply bg-bk-yellow text-white font-semibold hover:bg-bk-yellow-hover
+           transition-colors disabled:opacity-40 rounded-md;
   }
   .btn-ghost {
     @apply border border-bk-border text-bk-text-2 hover:border-bk-border-2
-           hover:text-bk-text transition-colors;
+           hover:bg-bk-elevated hover:text-bk-text transition-colors rounded-md bg-white;
   }
 }
