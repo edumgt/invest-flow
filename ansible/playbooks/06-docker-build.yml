@@ -1,0 +1,86 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 06-docker-build.yml  —  BE / FE Docker 이미지 빌드
+#
+# 실행:
+#   ansible-playbook playbooks/06-docker-build.yml           (전체 빌드)
+#   ansible-playbook playbooks/06-docker-build.yml --tags be (백엔드만)
+#   ansible-playbook playbooks/06-docker-build.yml --tags fe (프론트만)
+#   ansible-playbook playbooks/06-docker-build.yml -e "no_cache=true"
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Docker 이미지 빌드
+  hosts: local
+  gather_facts: false
+  vars:
+    compose_file: "{{ project_root }}/docker-compose.wsl.yml"
+    no_cache: false
+
+  tasks:
+    # ── 사전 확인 ─────────────────────────────────────────────────────────────
+    - name: Docker 데몬 실행 확인
+      ansible.builtin.command: docker info
+      register: docker_info
+      changed_when: false
+      failed_when: docker_info.rc != 0
+
+    - name: compose 파일 존재 확인
+      ansible.builtin.stat:
+        path: "{{ compose_file }}"
+      register: compose_stat
+
+    - name: compose 파일 없으면 중단
+      ansible.builtin.fail:
+        msg: "{{ compose_file }} 파일을 찾을 수 없습니다."
+      when: not compose_stat.stat.exists
+
+    # ── 백엔드 이미지 빌드 ───────────────────────────────────────────────────
+    - name: 백엔드 이미지 빌드 (invest-flow-backend:latest)
+      ansible.builtin.shell: >
+        docker compose -f {{ compose_file }}
+        build
+        {{ '--no-cache' if no_cache else '' }}
+        --progress=plain
+        backend
+        2>&1
+      args:
+        executable: /bin/bash
+      register: be_build
+      changed_when: true
+      tags: [be]
+
+    - name: 백엔드 빌드 결과 (마지막 5줄)
+      ansible.builtin.debug:
+        msg: "{{ be_build.stdout_lines[-5:] }}"
+      tags: [be]
+
+    # ── 프론트엔드 이미지 빌드 ───────────────────────────────────────────────
+    - name: 프론트엔드 이미지 빌드 (invest-flow-frontend:latest)
+      ansible.builtin.shell: >
+        docker compose -f {{ compose_file }}
+        build
+        {{ '--no-cache' if no_cache else '' }}
+        --progress=plain
+        frontend
+        2>&1
+      args:
+        executable: /bin/bash
+      register: fe_build
+      changed_when: true
+      tags: [fe]
+
+    - name: 프론트엔드 빌드 결과 (마지막 5줄)
+      ansible.builtin.debug:
+        msg: "{{ fe_build.stdout_lines[-5:] }}"
+      tags: [fe]
+
+    # ── 이미지 목록 출력 ──────────────────────────────────────────────────────
+    - name: 빌드된 이미지 목록
+      ansible.builtin.shell: |
+        docker images --format {% raw %}"table {{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}"{% endraw %} \
+          | grep -E "invest-flow|REPOSITORY"
+      register: image_list
+      changed_when: false
+
+    - name: 이미지 정보 출력
+      ansible.builtin.debug:
+        msg: "{{ image_list.stdout_lines }}"

@@ -6,9 +6,6 @@
 #   ansible-playbook playbooks/05-airflow-dag-sync.yml          (전체 DAG)
 #   ansible-playbook playbooks/05-airflow-dag-sync.yml \
 #     -e "dag_file=precision_classifier_dag.py"                  (특정 파일)
-#
-# 사전 조건: Airflow VM SSH 키 설정 필요
-#   ssh-copy-id -i ~/.ssh/id_ed25519.pub ubuntu@192.168.253.149
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Airflow DAG 파일 동기화
   hosts: airflow
@@ -18,55 +15,67 @@
     dag_file: ""       # 빈 문자열 = 전체 동기화
 
   tasks:
-    - name: 원격 DAG 디렉터리 존재 확인
-      ansible.builtin.stat:
-        path: "{{ airflow_dags_dir }}"
-      register: dags_dir_stat
-
-    - name: DAG 디렉터리 없으면 생성
+    # ── DAG 디렉터리 권한 확인 및 수정 ───────────────────────────────────────
+    - name: DAG 디렉터리 소유권을 ubuntu로 변경 (Docker 볼륨은 root 소유)
       ansible.builtin.file:
         path: "{{ airflow_dags_dir }}"
+        owner: ubuntu
+        group: ubuntu
+        recurse: false
         state: directory
         mode: '0755'
-      when: not dags_dir_stat.stat.exists
+      become: true
 
-    # ── 특정 파일 복사 ────────────────────────────────────────────────────────
+    # ── 특정 파일만 복사 ─────────────────────────────────────────────────────
     - name: 특정 DAG 파일 복사
       ansible.builtin.copy:
         src: "{{ local_dags_dir }}/{{ dag_file }}"
         dest: "{{ airflow_dags_dir }}/{{ dag_file }}"
+        owner: ubuntu
+        group: ubuntu
         mode: '0644'
+      become: true
       when: dag_file != ""
-      notify: Airflow DAG 파일 갱신됨
+      notify: Airflow DAG 갱신됨
 
-    # ── 전체 DAG 동기화 ───────────────────────────────────────────────────────
-    - name: 전체 DAG 파일 동기화
-      ansible.builtin.synchronize:
-        src: "{{ local_dags_dir }}/"
-        dest: "{{ airflow_dags_dir }}/"
-        delete: false        # 원격에만 있는 파일은 유지
-        checksum: true
-        rsync_opts:
-          - "--include=*.py"
-          - "--exclude=*"
+    # ── 전체 DAG 동기화 (로컬 .py → 원격) ───────────────────────────────────
+    - name: 로컬 DAG 파일 목록 수집
+      ansible.builtin.find:
+        paths: "{{ local_dags_dir }}"
+        patterns: "*.py"
+      register: local_dag_files
+      delegate_to: localhost
       when: dag_file == ""
-      notify: Airflow DAG 파일 갱신됨
 
-    # ── 동기화 결과 확인 ──────────────────────────────────────────────────────
+    - name: 전체 DAG 파일 복사
+      ansible.builtin.copy:
+        src: "{{ item.path }}"
+        dest: "{{ airflow_dags_dir }}/{{ item.path | basename }}"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+      become: true
+      loop: "{{ local_dag_files.files }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
+      when: dag_file == ""
+      notify: Airflow DAG 갱신됨
+
+    # ── 결과 확인 ─────────────────────────────────────────────────────────────
     - name: 원격 DAG 목록 확인
       ansible.builtin.find:
         paths: "{{ airflow_dags_dir }}"
         patterns: "*.py"
       register: remote_dags
 
-    - name: 동기화된 DAG 목록 출력
+    - name: 동기화 결과 출력
       ansible.builtin.debug:
         msg:
           - "동기화 완료: {{ remote_dags.files | length }}개 DAG"
-          - "{{ remote_dags.files | map(attribute='path') | map('basename') | list }}"
+          - "{{ remote_dags.files | map(attribute='path') | map('basename') | list | sort }}"
 
-    # ── Airflow DAG 파싱 오류 확인 (API 방식) ─────────────────────────────────
-    - name: Airflow API로 DAG 상태 확인
+    # ── Airflow API로 DAG 인식 상태 확인 ─────────────────────────────────────
+    - name: Airflow API로 DAG 목록 확인
       ansible.builtin.uri:
         url: "{{ airflow_api_url }}/dags?limit=20"
         user: "{{ airflow_api_user }}"
@@ -77,12 +86,12 @@
       failed_when: false
       delegate_to: localhost
 
-    - name: Airflow DAG 인식 상태
+    - name: Airflow 인식 DAG 출력
       ansible.builtin.debug:
         msg: "Airflow 인식 DAG: {{ dag_api_result.json.dags | map(attribute='dag_id') | list }}"
       when: dag_api_result.status == 200
 
   handlers:
-    - name: Airflow DAG 파일 갱신됨
+    - name: Airflow DAG 갱신됨
       ansible.builtin.debug:
-        msg: "DAG 파일이 업데이트됐습니다. Airflow가 자동으로 감지합니다 (약 30초 소요)."
+        msg: "DAG 파일 업데이트 완료. Airflow가 약 30초 내 자동 감지합니다."

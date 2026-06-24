@@ -1,0 +1,267 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 10-airflow-install.yml  —  Apache Airflow 설치 (airflow-vm: 192.168.253.149)
+#
+# 구성:
+#   - Docker + Docker Compose Plugin 설치
+#   - docker-compose.airflow.yml 배포
+#   - DAG / plugin 파일 동기화
+#   - airflow-init 실행 (DB 마이그레이션 + admin 계정 생성)
+#   - 전체 서비스 기동
+#
+# Airflow 스택:
+#   apache/airflow:2.10.4-python3.12  CeleryExecutor
+#   postgres:16-alpine  /  redis:7-alpine
+#   webserver: http://192.168.253.149:8793  (admin / admin)
+#
+# 실행:
+#   ansible-playbook playbooks/10-airflow-install.yml
+#
+#   admin 비밀번호 변경 시:
+#   ansible-playbook playbooks/10-airflow-install.yml \
+#     -e "airflow_admin_password=MySecurePass123"
+#
+# 태그별 부분 실행:
+#   --tags docker      Docker 설치만
+#   --tags deploy      compose 파일 + DAG 배포만
+#   --tags init        airflow-init 재실행 (DB 재초기화)
+#   --tags start       서비스 기동만
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Airflow 설치 (Docker Compose)
+  hosts: airflow
+  become: true
+  gather_facts: true
+  vars:
+    deploy_dir: /home/ubuntu/invest-flow
+    airflow_uid: 50000
+    airflow_admin_user: admin
+    airflow_admin_password: admin
+    airflow_port: 8793
+    compose_file: "{{ deploy_dir }}/docker-compose.airflow.yml"
+
+  tasks:
+    # ── OS 확인 ───────────────────────────────────────────────────────────────
+    - name: Ubuntu 계열인지 확인
+      ansible.builtin.fail:
+        msg: "Ubuntu 계열만 지원합니다. (현재: {{ ansible_distribution }})"
+      when: ansible_distribution != 'Ubuntu'
+
+    # ── Docker 설치 ───────────────────────────────────────────────────────────
+    - name: Docker 설치 여부 확인
+      ansible.builtin.command: docker --version
+      register: docker_check
+      changed_when: false
+      failed_when: false
+      tags: [docker]
+
+    - name: Docker apt 의존성 설치
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: true
+      when: docker_check.rc != 0
+      tags: [docker]
+
+    - name: Docker GPG 키 등록
+      ansible.builtin.shell: |
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+          -o /etc/apt/keyrings/docker.asc
+        chmod a+r /etc/apt/keyrings/docker.asc
+      args:
+        creates: /etc/apt/keyrings/docker.asc
+      when: docker_check.rc != 0
+      tags: [docker]
+
+    - name: Docker apt 저장소 등록
+      ansible.builtin.shell: |
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+          https://download.docker.com/linux/ubuntu \
+          $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+          > /etc/apt/sources.list.d/docker.list
+      args:
+        creates: /etc/apt/sources.list.d/docker.list
+      when: docker_check.rc != 0
+      tags: [docker]
+
+    - name: Docker CE 설치
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+      when: docker_check.rc != 0
+      tags: [docker]
+
+    - name: ubuntu 사용자를 docker 그룹에 추가
+      ansible.builtin.user:
+        name: ubuntu
+        groups: docker
+        append: true
+      tags: [docker]
+
+    - name: Docker 서비스 활성화 및 시작
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: true
+      tags: [docker]
+
+    # ── 배포 디렉터리 준비 ─────────────────────────────────────────────────────
+    - name: 배포 디렉터리 생성
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0755"
+      loop:
+        - "{{ deploy_dir }}"
+        - "{{ deploy_dir }}/airflow/dags"
+        - "{{ deploy_dir }}/airflow/logs"
+        - "{{ deploy_dir }}/airflow/plugins"
+      tags: [deploy]
+
+    - name: logs 디렉터리 Airflow UID 소유권 설정
+      ansible.builtin.file:
+        path: "{{ deploy_dir }}/airflow/logs"
+        owner: "{{ airflow_uid }}"
+        group: "0"
+        mode: "0775"
+        recurse: true
+      tags: [deploy]
+
+    # ── compose 파일 배포 ─────────────────────────────────────────────────────
+    - name: docker-compose.airflow.yml 복사
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../docker-compose.airflow.yml"
+        dest: "{{ compose_file }}"
+        owner: ubuntu
+        group: ubuntu
+        mode: "0644"
+      tags: [deploy]
+
+    - name: .env 파일 생성
+      ansible.builtin.copy:
+        dest: "{{ deploy_dir }}/.env"
+        owner: ubuntu
+        group: ubuntu
+        mode: "0600"
+        content: |
+          AIRFLOW_UID={{ airflow_uid }}
+          _AIRFLOW_WWW_USER_USERNAME={{ airflow_admin_user }}
+          _AIRFLOW_WWW_USER_PASSWORD={{ airflow_admin_password }}
+      tags: [deploy]
+
+    # ── DAG / Plugin 파일 동기화 ──────────────────────────────────────────────
+    - name: DAG 파일 목록 수집 (localhost)
+      ansible.builtin.find:
+        paths: "{{ playbook_dir }}/../../airflow/dags"
+        patterns: "*.py"
+      delegate_to: localhost
+      become: false
+      register: dag_files
+      tags: [deploy]
+
+    - name: DAG 파일 복사
+      ansible.builtin.copy:
+        src: "{{ item.path }}"
+        dest: "{{ deploy_dir }}/airflow/dags/{{ item.path | basename }}"
+        owner: "{{ airflow_uid }}"
+        group: "0"
+        mode: "0644"
+      loop: "{{ dag_files.files }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
+      when: dag_files.files | length > 0
+      tags: [deploy]
+
+    - name: Plugin 파일 목록 수집 (localhost)
+      ansible.builtin.find:
+        paths: "{{ playbook_dir }}/../../airflow/plugins"
+        patterns: "*.py"
+      delegate_to: localhost
+      become: false
+      register: plugin_files
+      tags: [deploy]
+
+    - name: Plugin 파일 복사
+      ansible.builtin.copy:
+        src: "{{ item.path }}"
+        dest: "{{ deploy_dir }}/airflow/plugins/{{ item.path | basename }}"
+        owner: "{{ airflow_uid }}"
+        group: "0"
+        mode: "0644"
+      loop: "{{ plugin_files.files }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
+      when: plugin_files.files | length > 0
+      tags: [deploy]
+
+    # ── airflow-init (DB 마이그레이션 + admin 계정) ───────────────────────────
+    - name: airflow-init 실행 (DB 마이그레이션 + admin 계정 생성)
+      ansible.builtin.shell: |
+        cd {{ deploy_dir }}
+        docker compose -f docker-compose.airflow.yml up airflow-init --exit-code-from airflow-init
+      args:
+        executable: /bin/bash
+      register: init_result
+      changed_when: true
+      tags: [init]
+
+    - name: init 결과 출력 (마지막 10줄)
+      ansible.builtin.debug:
+        msg: "{{ init_result.stdout_lines[-10:] }}"
+      tags: [init]
+
+    # ── 서비스 기동 ───────────────────────────────────────────────────────────
+    - name: Airflow 서비스 기동 (webserver / scheduler / worker / triggerer)
+      ansible.builtin.shell: |
+        cd {{ deploy_dir }}
+        docker compose -f docker-compose.airflow.yml up -d \
+          airflow-webserver airflow-scheduler airflow-worker airflow-triggerer
+      args:
+        executable: /bin/bash
+      changed_when: true
+      tags: [start]
+
+    - name: Webserver 헬스체크 대기 (최대 3분)
+      ansible.builtin.uri:
+        url: "http://localhost:{{ airflow_port }}/health"
+        status_code: 200
+        timeout: 10
+      register: health
+      retries: 18
+      delay: 10
+      tags: [start]
+
+    # ── 컨테이너 상태 출력 ────────────────────────────────────────────────────
+    - name: 컨테이너 상태 조회
+      ansible.builtin.shell: |
+        cd {{ deploy_dir }}
+        docker compose -f docker-compose.airflow.yml ps \
+          --format "table {% raw %}{{.Name}}\t{{.Status}}{% endraw %}" 2>/dev/null
+      register: ps_result
+      changed_when: false
+      tags: [start]
+
+    - name: 설치 완료 안내
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - " Airflow 설치 완료"
+          - " UI  : http://192.168.253.149:{{ airflow_port }}"
+          - " ID  : {{ airflow_admin_user }}"
+          - " PW  : {{ airflow_admin_password }}"
+          - "───────────────────────────────────────────"
+          - "{{ ps_result.stdout }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      tags: [start]

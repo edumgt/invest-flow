@@ -51,7 +51,9 @@
 
     # ── 백엔드 재시작 ─────────────────────────────────────────────────────────
     - name: 기존 백엔드 프로세스 중지
-      ansible.builtin.shell: pkill -f 'node.*server.js' || true
+      ansible.builtin.shell: |
+        pgrep -f '[n]ode --env-file' | xargs -r kill 2>/dev/null
+        exit 0
       changed_when: true
       tags: [be]
 
@@ -65,6 +67,8 @@
         cd {{ backend_dir }}
         nohup node --env-file .env src/server.js >> /tmp/backend.log 2>&1 &
         disown
+      args:
+        executable: /bin/bash
       changed_when: true
       tags: [be]
 

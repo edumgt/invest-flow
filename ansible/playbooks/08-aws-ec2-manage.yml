@@ -1,0 +1,107 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 08-aws-ec2-manage.yml  —  AWS EC2 인스턴스 기동 / 중지 / 재시작 / 상태 조회
+#
+# 대상 인스턴스:
+#   ID   : i-0af91b80c1ada35f3
+#   Name : bastion-host
+#   Type : t3.medium  (ap-northeast-2c)
+#
+# 실행:
+#   ansible-playbook playbooks/08-aws-ec2-manage.yml                     (상태 조회)
+#   ansible-playbook playbooks/08-aws-ec2-manage.yml -e "ec2_action=start"
+#   ansible-playbook playbooks/08-aws-ec2-manage.yml -e "ec2_action=stop"
+#   ansible-playbook playbooks/08-aws-ec2-manage.yml -e "ec2_action=restart"
+#
+#   다른 인스턴스 지정:
+#   ansible-playbook playbooks/08-aws-ec2-manage.yml \
+#     -e "ec2_action=start ec2_instance_id=i-xxxxxxxxxxxx"
+# ─────────────────────────────────────────────────────────────────────────────
+- name: AWS EC2 인스턴스 관리
+  hosts: local
+  gather_facts: false
+  vars:
+    ec2_instance_id: i-0af91b80c1ada35f3
+    ec2_region: ap-northeast-2
+    ec2_action: status          # start | stop | restart | status
+    wait_ssh: false             # start 후 SSH 포트(22) 열릴 때까지 대기 여부
+
+  tasks:
+    # ── 현재 상태 조회 ─────────────────────────────────────────────────────────
+    - name: 인스턴스 현재 상태 조회
+      amazon.aws.ec2_instance_info:
+        instance_ids:
+          - "{{ ec2_instance_id }}"
+        region: "{{ ec2_region }}"
+      register: ec2_info
+
+    - name: 현재 상태 출력
+      ansible.builtin.debug:
+        msg:
+          - "Instance : {{ ec2_instance_id }}"
+          - "Name     : {{ ec2_info.instances[0].tags.Name | default('(태그 없음)') }}"
+          - "Type     : {{ ec2_info.instances[0].instance_type }}"
+          - "State    : {{ ec2_info.instances[0].state.name }}"
+          - "PublicIP : {{ ec2_info.instances[0].public_ip_address | default('(없음)') }}"
+          - "PrivateIP: {{ ec2_info.instances[0].private_ip_address | default('(없음)') }}"
+
+    # ── STOP ──────────────────────────────────────────────────────────────────
+    - name: 인스턴스 중지
+      amazon.aws.ec2_instance:
+        instance_ids:
+          - "{{ ec2_instance_id }}"
+        region: "{{ ec2_region }}"
+        state: stopped
+        wait: true
+        wait_timeout: 120
+      when: ec2_action in ['stop', 'restart']
+      register: stop_result
+
+    - name: 중지 완료 메시지
+      ansible.builtin.debug:
+        msg: "인스턴스 중지 완료: {{ ec2_instance_id }}"
+      when: ec2_action == 'stop'
+
+    # ── START ─────────────────────────────────────────────────────────────────
+    - name: 인스턴스 기동
+      amazon.aws.ec2_instance:
+        instance_ids:
+          - "{{ ec2_instance_id }}"
+        region: "{{ ec2_region }}"
+        state: running
+        wait: true
+        wait_timeout: 180
+      when: ec2_action in ['start', 'restart']
+      register: start_result
+
+    # ── 기동 후 상태 재조회 ────────────────────────────────────────────────────
+    - name: 기동 후 인스턴스 정보 재조회
+      amazon.aws.ec2_instance_info:
+        instance_ids:
+          - "{{ ec2_instance_id }}"
+        region: "{{ ec2_region }}"
+      register: ec2_info_after
+      when: ec2_action in ['start', 'restart']
+
+    - name: SSH 포트 열릴 때까지 대기
+      ansible.builtin.wait_for:
+        host: "{{ ec2_info_after.instances[0].public_ip_address }}"
+        port: 22
+        timeout: 60
+        delay: 5
+      when:
+        - ec2_action in ['start', 'restart']
+        - wait_ssh | bool
+        - ec2_info_after.instances[0].public_ip_address is defined
+
+    - name: 기동 완료 출력
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - " EC2 기동 완료"
+          - " Instance : {{ ec2_instance_id }}"
+          - " State    : {{ ec2_info_after.instances[0].state.name }}"
+          - " PublicIP : {{ ec2_info_after.instances[0].public_ip_address | default('(없음 — Elastic IP 없음)') }}"
+          - " PrivateIP: {{ ec2_info_after.instances[0].private_ip_address }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      when: ec2_action in ['start', 'restart']

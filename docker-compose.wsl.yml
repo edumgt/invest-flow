@@ -1,0 +1,71 @@
+# docker-compose.wsl.yml
+# WSL2 네이티브 실행과 동일한 환경을 Docker 컨테이너로 구성
+#
+# 주요 차이점 (native vs Docker):
+#   DATABASE_URL : localhost → host.docker.internal  (컨테이너 내부에선 localhost=자기 자신)
+#   OLLAMA_URL   : 172.29.32.1 → host.docker.internal (same Windows host)
+#   DATA_ROOT    : 호스트 경로를 컨테이너에 마운트
+#
+# 실행: docker compose -f docker-compose.wsl.yml up -d
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: invest-flow-backend:latest
+    container_name: invest_backend
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://calendar:calendar123@host.docker.internal:5432/calendar_app
+      JWT_SECRET: change-me-secret
+      CORS_ORIGIN: "http://localhost:5173,http://localhost:8302"
+      OLLAMA_URL: http://host.docker.internal:11300
+      OLLAMA_MODEL: qwen3.5:latest
+      OLLAMA_VISION_MODEL: llava:34b
+      DATA_ROOT: /data
+      AIRFLOW_URL: http://192.168.253.149:8793
+      AIRFLOW_USER: admin
+      AIRFLOW_PASS: admin
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # WSL2 → Windows 호스트 접근
+    volumes:
+      - ./backend:/app
+      - /app/node_modules                      # 컨테이너 내부 node_modules 보존
+      - ./DATA-ROOT:/data                      # classify.py 원본 이미지 + 학습 데이터
+    ports:
+      - "8301:3000"
+    networks:
+      - invest-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: invest-flow-frontend:latest
+    container_name: invest_frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:8301
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "8302:5173"
+    networks:
+      - invest-net
+    depends_on:
+      backend:
+        condition: service_healthy
+
+networks:
+  invest-net:
+    name: invest-flow-net
+    driver: bridge

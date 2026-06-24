@@ -1,0 +1,138 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 09-gitlab-ce-install.yml  —  GitLab CE 설치 (gitlab-vm: 192.168.253.148)
+#
+# 실행:
+#   ansible-playbook playbooks/09-gitlab-ce-install.yml
+#
+#   외부 URL 변경 시:
+#   ansible-playbook playbooks/09-gitlab-ce-install.yml \
+#     -e "gitlab_external_url=http://192.168.253.148"
+#
+# 설치 후 접속:
+#   http://192.168.253.148  (초기 root 비밀번호 → /etc/gitlab/initial_root_password)
+#
+# 참고: reconfigure 은 5~10분 소요됨
+# ─────────────────────────────────────────────────────────────────────────────
+- name: GitLab CE 설치
+  hosts: gitlab
+  become: true
+  gather_facts: true
+  vars:
+    gitlab_external_url: "http://192.168.253.148"
+    gitlab_version: ""          # 빈 값이면 최신 CE 설치. 고정 시: "17.1.0-ce.0"
+
+  tasks:
+    # ── 사전 확인 ─────────────────────────────────────────────────────────────
+    - name: OS 확인 (Ubuntu 만 지원)
+      ansible.builtin.fail:
+        msg: "Ubuntu 계열만 지원합니다. (현재: {{ ansible_distribution }})"
+      when: ansible_distribution != 'Ubuntu'
+
+    - name: 이미 GitLab 설치 여부 확인
+      ansible.builtin.stat:
+        path: /etc/gitlab/gitlab.rb
+      register: gitlab_rb
+
+    - name: 이미 설치된 경우 스킵 안내
+      ansible.builtin.debug:
+        msg: "GitLab이 이미 설치되어 있습니다. reconfigure만 재실행하려면 --tags reconfigure 를 사용하세요."
+      when: gitlab_rb.stat.exists
+
+    # ── 패키지 의존성 설치 ─────────────────────────────────────────────────────
+    - name: 의존성 패키지 설치
+      ansible.builtin.apt:
+        name:
+          - curl
+          - ca-certificates
+          - tzdata
+          - perl
+        state: present
+        update_cache: true
+      when: not gitlab_rb.stat.exists
+
+    # ── GitLab apt 저장소 등록 ─────────────────────────────────────────────────
+    - name: GitLab apt 저장소 스크립트 다운로드 및 실행
+      ansible.builtin.shell: |
+        curl -sS https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.deb.sh | bash
+      args:
+        executable: /bin/bash
+        creates: /etc/apt/sources.list.d/gitlab_gitlab-ce.list
+      when: not gitlab_rb.stat.exists
+
+    # ── GitLab CE 설치 ─────────────────────────────────────────────────────────
+    - name: GitLab CE 설치 (버전 고정)
+      ansible.builtin.apt:
+        name: "gitlab-ce={{ gitlab_version }}"
+        state: present
+        update_cache: true
+      environment:
+        EXTERNAL_URL: "{{ gitlab_external_url }}"
+      when:
+        - not gitlab_rb.stat.exists
+        - gitlab_version != ""
+
+    - name: GitLab CE 설치 (최신 버전)
+      ansible.builtin.apt:
+        name: gitlab-ce
+        state: present
+        update_cache: true
+      environment:
+        EXTERNAL_URL: "{{ gitlab_external_url }}"
+      when:
+        - not gitlab_rb.stat.exists
+        - gitlab_version == ""
+
+    # ── external_url 설정 ─────────────────────────────────────────────────────
+    - name: external_url 설정 확인 및 업데이트
+      ansible.builtin.lineinfile:
+        path: /etc/gitlab/gitlab.rb
+        regexp: "^external_url"
+        line: "external_url '{{ gitlab_external_url }}'"
+        backup: true
+      register: url_changed
+      tags: [reconfigure]
+
+    # ── reconfigure ───────────────────────────────────────────────────────────
+    - name: gitlab-ctl reconfigure (5~10분 소요)
+      ansible.builtin.command: gitlab-ctl reconfigure
+      when: not gitlab_rb.stat.exists or url_changed.changed
+      changed_when: true
+      async: 900       # 최대 15분 허용
+      poll: 30         # 30초마다 상태 확인
+      tags: [reconfigure]
+
+    # ── 서비스 상태 확인 ──────────────────────────────────────────────────────
+    - name: GitLab 서비스 상태 확인
+      ansible.builtin.command: gitlab-ctl status
+      register: gitlab_status
+      changed_when: false
+      tags: [reconfigure]
+
+    - name: 상태 출력 (핵심 서비스)
+      ansible.builtin.debug:
+        msg: "{{ gitlab_status.stdout_lines | select('match', '^run:') | list }}"
+      tags: [reconfigure]
+
+    # ── 초기 root 비밀번호 ────────────────────────────────────────────────────
+    - name: 초기 root 비밀번호 파일 확인
+      ansible.builtin.stat:
+        path: /etc/gitlab/initial_root_password
+      register: root_pw_file
+
+    - name: 초기 root 비밀번호 출력
+      ansible.builtin.command: cat /etc/gitlab/initial_root_password
+      register: root_pw
+      changed_when: false
+      when: root_pw_file.stat.exists
+
+    - name: 설치 완료 안내
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - " GitLab CE 설치 완료"
+          - " URL      : {{ gitlab_external_url }}"
+          - " 계정     : root"
+          - " 비밀번호 : {{ root_pw.stdout_lines | select('match', 'Password:') | list | first | default('→ /etc/gitlab/initial_root_password 확인') }}"
+          - " ※ 초기 비밀번호 파일은 24시간 후 자동 삭제됩니다"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
