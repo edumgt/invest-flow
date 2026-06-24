@@ -1,4 +1,6 @@
 node_modules
+frontend/node_modules
+backend/node_modules
 
 dist-ssr
 *.local
@@ -22,6 +24,7 @@ airflow/dags/__pycache__/
 # Environment files (secrets)
 .env
 backend/.env
+frontend/.env
 
 .claude/
 .vscode/

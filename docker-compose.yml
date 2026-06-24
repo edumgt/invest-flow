@@ -18,14 +18,14 @@ services:
 
   frontend:
     build:
-      context: .
+      context: ./frontend
     container_name: calendar_frontend
     depends_on:
       - backend
     environment:
       VITE_API_URL: http://localhost:8301
     volumes:
-      - .:/app
+      - ./frontend:/app
       - /app/node_modules
     ports:
       - "8302:5173"

@@ -25,9 +25,13 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
     - run: npm ci
+      working-directory: frontend
     - run: npm run build --if-present
+      working-directory: frontend
     - run: npm test --if-present
+      working-directory: frontend
 
   # GitHub → GitLab 미러링 (main 브랜치 push 시에만 실행)
   mirror-to-gitlab:
