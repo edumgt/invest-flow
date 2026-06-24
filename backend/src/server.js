@@ -1,7 +1,7 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { runQuery, sql } from './db.js';
-import { generateRecommendations } from './ai.js';
+import { generateRecommendations, generateRecommendationsStream } from './ai.js';
 
 const port = Number(process.env.PORT || 3000);
 const jwtSecret = process.env.JWT_SECRET || 'change-me-secret';
@@ -221,7 +221,48 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── AI recommendations ────────────────────────────────────────────────
+  // ── AI recommendations (SSE streaming) ───────────────────────────────
+  if (url === '/api/ai/recommend/stream' && method === 'POST') {
+    const payload = requireAuth(req, res); if (!payload) return;
+
+    res.writeHead(200, {
+      'Content-Type':                'text/event-stream; charset=utf-8',
+      'Cache-Control':               'no-cache',
+      'Connection':                  'keep-alive',
+      'Access-Control-Allow-Origin': allowedOrigin,
+      'Access-Control-Allow-Headers':'Content-Type, Authorization',
+      'X-Accel-Buffering':           'no',
+    });
+
+    const send = (data) => { if (!res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`); };
+
+    try {
+      send({ type: 'progress', message: '포트폴리오 로딩 중...', percent: 3 });
+
+      const result = await runQuery(sql`
+        SELECT ticker, asset_name, asset_type, quantity, avg_price, currency
+        FROM investments WHERE user_id = ${payload.sub} ORDER BY created_at;
+      `);
+      const portfolio = rows(result).map((line) => {
+        const [ticker, asset_name, asset_type, quantity, avg_price, currency] = line.split('\t');
+        return { ticker, asset_name, asset_type,
+                 quantity: Number(quantity), avg_price: Number(avg_price), currency };
+      });
+
+      send({ type: 'progress', message: `포트폴리오 ${portfolio.length}개 종목 확인`, percent: 8 });
+
+      const data = await generateRecommendationsStream(portfolio, send);
+
+      send({ type: 'done', recommendations: data.recommendations });
+    } catch (err) {
+      send({ type: 'error', message: err.message });
+    } finally {
+      res.end();
+    }
+    return;
+  }
+
+  // ── AI recommendations (non-streaming, legacy) ────────────────────────
   if (url === '/api/ai/recommend' && method === 'POST') {
     const payload = requireAuth(req, res); if (!payload) return;
     try {

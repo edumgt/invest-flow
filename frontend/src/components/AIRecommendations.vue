@@ -26,6 +26,32 @@
           {{ loading ? 'AI 분석 중...' : 'AI 분석 시작' }}
         </button>
       </div>
+
+      <!-- ── SSE Progress Bar (로딩 시 헤더 하단에 표시) ────────────── -->
+      <div v-if="loading" class="border-t border-white/10 bg-[#0a0e1a] px-6 py-4">
+        <!-- 단계 레이블 -->
+        <div class="mb-3 flex justify-between text-[11px] font-medium">
+          <span :class="progressPercent >= 3  ? 'text-bk-yellow' : 'text-white/30'">포트폴리오 로드</span>
+          <span :class="progressPercent >= 12 ? 'text-bk-yellow' : 'text-white/30'">모델 초기화</span>
+          <span :class="progressPercent >= 15 ? 'text-bk-yellow' : 'text-white/30'">GPU 추론</span>
+          <span :class="progressPercent >= 96 ? 'text-bk-yellow' : 'text-white/30'">결과 분석</span>
+        </div>
+
+        <!-- 진행 바 -->
+        <div class="h-2 w-full overflow-hidden rounded-full bg-white/10">
+          <div
+            class="h-full rounded-full transition-all duration-700 ease-out"
+            style="background: linear-gradient(90deg, #F7B731 0%, #0F6CBD 100%)"
+            :style="{ width: `${progressPercent}%` }"
+          ></div>
+        </div>
+
+        <!-- 메시지 + 퍼센트 -->
+        <div class="mt-2.5 flex items-center justify-between">
+          <p class="text-xs text-white/60">{{ progressMessage }}</p>
+          <span class="text-xs font-semibold text-bk-yellow">{{ progressPercent }}%</span>
+        </div>
+      </div>
     </div>
 
     <!-- ── 에러 ──────────────────────────────────────────────────────── -->
@@ -42,23 +68,6 @@
       </div>
       <p class="mt-5 font-semibold text-bk-text">추천 일정이 없습니다</p>
       <p class="mt-1 text-sm text-bk-text-3">위의 "AI 분석 시작" 버튼을 눌러 추천을 받아보세요</p>
-    </div>
-
-    <!-- ── 로딩 스켈레톤 ─────────────────────────────────────────────── -->
-    <div v-if="loading" class="space-y-3">
-      <div v-for="i in 5" :key="i" class="card-bk animate-pulse p-5">
-        <div class="flex items-center gap-4">
-          <div class="h-12 w-12 rounded-xl bg-bk-elevated"></div>
-          <div class="flex-1 space-y-2">
-            <div class="h-4 w-2/5 rounded-full bg-bk-elevated"></div>
-            <div class="h-3 w-1/4 rounded-full bg-bk-elevated"></div>
-          </div>
-        </div>
-        <div class="mt-4 space-y-2">
-          <div class="h-3 rounded-full bg-bk-elevated"></div>
-          <div class="h-3 w-4/5 rounded-full bg-bk-elevated"></div>
-        </div>
-      </div>
     </div>
 
     <!-- ── 추천 카드 목록 ─────────────────────────────────────────────── -->
@@ -151,30 +160,70 @@ type Recommendation = {
 const props = defineProps<{ apiUrl: string; token: string }>();
 const emit = defineEmits<{ (e: 'event-added'): void }>();
 
-const loading = ref(false);
-const error = ref('');
+const loading         = ref(false);
+const error           = ref('');
 const recommendations = ref<Recommendation[]>([]);
-const scheduled = ref<Set<number>>(new Set());
-const scheduling = ref<number | null>(null);
-const bulkScheduling = ref(false);
+const scheduled       = ref<Set<number>>(new Set());
+const scheduling      = ref<number | null>(null);
+const bulkScheduling  = ref(false);
+const progressPercent = ref(0);
+const progressMessage = ref('');
 
 const allScheduled = computed(
   () => recommendations.value.length > 0 && scheduled.value.size === recommendations.value.length,
 );
 
+// SSE 스트림으로 AI 추천을 받아온다.
+// fetch + ReadableStream 으로 구현 — EventSource는 커스텀 헤더를 지원하지 않아 사용 불가.
 async function fetchRecommendations() {
-  loading.value = true;
-  error.value = '';
+  loading.value         = true;
+  error.value           = '';
   recommendations.value = [];
-  scheduled.value = new Set();
+  scheduled.value       = new Set();
+  progressPercent.value = 0;
+  progressMessage.value = 'AI 분석을 시작합니다...';
+
   try {
-    const res = await fetch(`${props.apiUrl}/api/ai/recommend`, {
-      method: 'POST',
+    const res = await fetch(`${props.apiUrl}/api/ai/recommend/stream`, {
+      method:  'POST',
       headers: { Authorization: `Bearer ${props.token}` },
     });
-    if (!res.ok) throw new Error((await res.json()).message);
-    const data = await res.json();
-    recommendations.value = data.recommendations ?? [];
+
+    if (!res.ok || !res.body) {
+      const msg = res.body ? (await res.json()).message : `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer    = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      // SSE는 \n\n 으로 이벤트를 구분하지만, 청크 경계에서 잘릴 수 있어
+      // \n 단위로 처리하고 마지막 불완전 라인은 buffer 에 보존한다.
+      const lines = buffer.split('\n');
+      buffer = lines.pop()!;
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const event = JSON.parse(line.slice(6));
+
+        if (event.type === 'progress') {
+          progressPercent.value = event.percent;
+          progressMessage.value = event.message;
+        } else if (event.type === 'done') {
+          progressPercent.value = 100;
+          progressMessage.value = '완료';
+          recommendations.value = event.recommendations ?? [];
+        } else if (event.type === 'error') {
+          throw new Error(event.message);
+        }
+      }
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'AI 추천 요청 실패';
   } finally {
@@ -189,17 +238,17 @@ async function addToCalendar(rec: Recommendation) {
   const start = new Date(`${rec.suggested_date}T10:00:00`);
   const end   = new Date(`${rec.suggested_date}T11:00:00`);
   const res = await fetch(`${props.apiUrl}/api/calendar/events`, {
-    method: 'POST',
+    method:  'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${props.token}` },
     body: JSON.stringify({
-      title: `[AI] ${rec.asset_name} ${rec.category}`,
-      event_type: typeMap[rec.action] ?? 'general',
-      ticker: rec.ticker,
-      start: start.toISOString(),
-      end: end.toISOString(),
-      notes: rec.reason,
+      title:            `[AI] ${rec.asset_name} ${rec.category}`,
+      event_type:       typeMap[rec.action] ?? 'general',
+      ticker:           rec.ticker,
+      start:            start.toISOString(),
+      end:              end.toISOString(),
+      notes:            rec.reason,
       is_ai_recommended: true,
-      priority: rec.priority,
+      priority:         rec.priority,
     }),
   });
   if (!res.ok) throw new Error((await res.json()).message);

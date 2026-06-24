@@ -7,7 +7,5 @@
     "dev": "node --env-file .env --watch src/server.js",
     "start": "node --env-file .env src/server.js"
   },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0"
-  }
+  "dependencies": {}
 }
