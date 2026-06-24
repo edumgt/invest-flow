@@ -2,10 +2,25 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { runQuery, sql } from './db.js';
 import { generateRecommendations, generateRecommendationsStream } from './ai.js';
+import {
+  handleGetOriginal, handlePostTrainingData, handleGetTrainingData,
+  handlePostConfig, handleGetConfig, handleClassify,
+} from './quality.js';
+import { handleAirflow } from './airflow.js';
 
 const port = Number(process.env.PORT || 3000);
 const jwtSecret = process.env.JWT_SECRET || 'change-me-secret';
-const allowedOrigin = process.env.CORS_ORIGIN || '*';
+
+// CORS_ORIGIN 은 쉼표 구분 다중 오리진 허용 (예: http://localhost:5173,http://localhost:8302)
+// Access-Control-Allow-Origin 은 단일 값만 허용되므로 요청 오리진과 대조해 동적으로 반환한다.
+const allowedOrigins = (process.env.CORS_ORIGIN || '*')
+  .split(',').map(o => o.trim()).filter(Boolean);
+
+function corsOrigin(req) {
+  if (allowedOrigins.includes('*')) return '*';
+  const origin = req.headers.origin || '';
+  return allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+}
 
 // ── JWT helpers ────────────────────────────────────────────────────────────
 function toBase64Url(input) {
@@ -34,10 +49,10 @@ function verifyJwt(token) {
 }
 
 // ── HTTP helpers ───────────────────────────────────────────────────────────
-function sendJson(res, status, body) {
+function sendJson(req, res, status, body) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Origin': req ? corsOrigin(req) : (allowedOrigins[0] || '*'),
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
   });
@@ -60,7 +75,7 @@ function requireAuth(req, res) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
   const payload = verifyJwt(token);
-  if (!payload) { sendJson(res, 401, { message: '인증이 필요합니다.' }); return null; }
+  if (!payload) { sendJson(req, res, 401, { message: '인증이 필요합니다.' }); return null; }
   return payload;
 }
 
@@ -70,15 +85,15 @@ function rows(result) {
 
 // ── Route table ────────────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
-  if (req.method === 'OPTIONS') { sendJson(res, 204, {}); return; }
+  if (req.method === 'OPTIONS') { sendJson(req, res, 204, {}); return; }
 
   const url = req.url?.split('?')[0] ?? '';
   const method = req.method ?? 'GET';
 
   // ── Health ────────────────────────────────────────────────────────────
   if (url === '/health' && method === 'GET') {
-    try { await runQuery('SELECT 1;'); sendJson(res, 200, { status: 'ok' }); }
-    catch { sendJson(res, 500, { status: 'db_error' }); }
+    try { await runQuery('SELECT 1;'); sendJson(req, res, 200, { status: 'ok' }); }
+    catch { sendJson(req, res, 500, { status: 'db_error' }); }
     return;
   }
 
@@ -87,7 +102,7 @@ const server = http.createServer(async (req, res) => {
     try {
       const { username, password } = await parseBody(req);
       if (!username || !password) {
-        sendJson(res, 400, { message: 'username과 password는 필수입니다.' }); return;
+        sendJson(req, res, 400, { message: 'username과 password는 필수입니다.' }); return;
       }
       const result = await runQuery(sql`
         SELECT id, username, display_name FROM users
@@ -96,15 +111,15 @@ const server = http.createServer(async (req, res) => {
         LIMIT 1;
       `);
       if (!result) {
-        sendJson(res, 401, { message: '아이디 또는 비밀번호가 올바르지 않습니다.' }); return;
+        sendJson(req, res, 401, { message: '아이디 또는 비밀번호가 올바르지 않습니다.' }); return;
       }
       const [id, loginId, displayName] = result.split('\t');
       const token = signJwt({
         sub: Number(id), username: loginId, displayName,
         exp: Math.floor(Date.now() / 1000) + 60 * 60 * 8,
       });
-      sendJson(res, 200, { token, user: { id: Number(id), username: loginId, displayName } });
-    } catch { sendJson(res, 500, { message: '로그인 처리 중 오류가 발생했습니다.' }); }
+      sendJson(req, res, 200, { token, user: { id: Number(id), username: loginId, displayName } });
+    } catch { sendJson(req, res, 500, { message: '로그인 처리 중 오류가 발생했습니다.' }); }
     return;
   }
 
@@ -121,8 +136,8 @@ const server = http.createServer(async (req, res) => {
         return { id: Number(id), ticker, asset_name, asset_type,
                  quantity: Number(quantity), avg_price: Number(avg_price), currency };
       });
-      sendJson(res, 200, investments);
-    } catch { sendJson(res, 500, { message: '포트폴리오 조회 실패' }); }
+      sendJson(req, res, 200, investments);
+    } catch { sendJson(req, res, 500, { message: '포트폴리오 조회 실패' }); }
     return;
   }
 
@@ -133,7 +148,7 @@ const server = http.createServer(async (req, res) => {
       const { ticker, asset_name, asset_type = 'stock', quantity, avg_price, currency = 'KRW' }
         = await parseBody(req);
       if (!ticker || !asset_name || quantity == null || avg_price == null) {
-        sendJson(res, 400, { message: 'ticker, asset_name, quantity, avg_price는 필수입니다.' }); return;
+        sendJson(req, res, 400, { message: 'ticker, asset_name, quantity, avg_price는 필수입니다.' }); return;
       }
       const result = await runQuery(sql`
         INSERT INTO investments (user_id, ticker, asset_name, asset_type, quantity, avg_price, currency)
@@ -141,8 +156,8 @@ const server = http.createServer(async (req, res) => {
                 ${quantity}, ${avg_price}, ${currency})
         RETURNING id;
       `);
-      sendJson(res, 201, { id: Number(result.trim()) });
-    } catch { sendJson(res, 500, { message: '포트폴리오 추가 실패' }); }
+      sendJson(req, res, 201, { id: Number(result.trim()) });
+    } catch { sendJson(req, res, 500, { message: '포트폴리오 추가 실패' }); }
     return;
   }
 
@@ -155,8 +170,8 @@ const server = http.createServer(async (req, res) => {
       await runQuery(sql`
         DELETE FROM investments WHERE id = ${invId} AND user_id = ${payload.sub};
       `);
-      sendJson(res, 200, { message: '삭제 완료' });
-    } catch { sendJson(res, 500, { message: '삭제 실패' }); }
+      sendJson(req, res, 200, { message: '삭제 완료' });
+    } catch { sendJson(req, res, 500, { message: '삭제 실패' }); }
     return;
   }
 
@@ -178,8 +193,8 @@ const server = http.createServer(async (req, res) => {
                  start: start, end: end,
                  notes, is_ai_recommended: is_ai === 't', priority, status };
       });
-      sendJson(res, 200, events);
-    } catch { sendJson(res, 500, { message: '캘린더 이벤트 조회 실패' }); }
+      sendJson(req, res, 200, events);
+    } catch { sendJson(req, res, 500, { message: '캘린더 이벤트 조회 실패' }); }
     return;
   }
 
@@ -191,7 +206,7 @@ const server = http.createServer(async (req, res) => {
               notes = null, is_ai_recommended = false, priority = 'MEDIUM' }
         = await parseBody(req);
       if (!title || !start || !end) {
-        sendJson(res, 400, { message: 'title, start, end는 필수입니다.' }); return;
+        sendJson(req, res, 400, { message: 'title, start, end는 필수입니다.' }); return;
       }
       const result = await runQuery(sql`
         INSERT INTO investment_events
@@ -202,8 +217,8 @@ const server = http.createServer(async (req, res) => {
            ${is_ai_recommended ? 'true' : 'false'}, ${priority})
         RETURNING id;
       `);
-      sendJson(res, 201, { id: Number(result.trim()) });
-    } catch { sendJson(res, 500, { message: '이벤트 추가 실패' }); }
+      sendJson(req, res, 201, { id: Number(result.trim()) });
+    } catch { sendJson(req, res, 500, { message: '이벤트 추가 실패' }); }
     return;
   }
 
@@ -216,8 +231,8 @@ const server = http.createServer(async (req, res) => {
       await runQuery(sql`
         DELETE FROM investment_events WHERE id = ${evId} AND user_id = ${payload.sub};
       `);
-      sendJson(res, 200, { message: '삭제 완료' });
-    } catch { sendJson(res, 500, { message: '삭제 실패' }); }
+      sendJson(req, res, 200, { message: '삭제 완료' });
+    } catch { sendJson(req, res, 500, { message: '삭제 실패' }); }
     return;
   }
 
@@ -229,7 +244,7 @@ const server = http.createServer(async (req, res) => {
       'Content-Type':                'text/event-stream; charset=utf-8',
       'Cache-Control':               'no-cache',
       'Connection':                  'keep-alive',
-      'Access-Control-Allow-Origin': allowedOrigin,
+      'Access-Control-Allow-Origin': corsOrigin(req),
       'Access-Control-Allow-Headers':'Content-Type, Authorization',
       'X-Accel-Buffering':           'no',
     });
@@ -276,14 +291,41 @@ const server = http.createServer(async (req, res) => {
                  quantity: Number(quantity), avg_price: Number(avg_price), currency };
       });
       const data = await generateRecommendations(portfolio);
-      sendJson(res, 200, data);
+      sendJson(req, res, 200, data);
     } catch (err) {
-      sendJson(res, 500, { message: 'AI 추천 생성 실패: ' + err.message });
+      sendJson(req, res, 500, { message: 'AI 추천 생성 실패: ' + err.message });
     }
     return;
   }
 
-  sendJson(res, 404, { message: 'Not found' });
+  // ── Airflow 프록시 (인증 필요) ───────────────────────────────────────────
+  if (url.startsWith('/api/airflow')) {
+    const payload = requireAuth(req, res); if (!payload) return;
+    return handleAirflow(req, res, sendJson);
+  }
+
+  // ── Quality Inspection ────────────────────────────────────────────────
+  if (url === '/api/quality/original' && method === 'GET')
+    return handleGetOriginal(req, res, sendJson);
+
+  if (url === '/api/quality/training-data' && method === 'POST')
+    return handlePostTrainingData(req, res, sendJson, parseBody);
+
+  if (url === '/api/quality/training-data' && method === 'GET')
+    return handleGetTrainingData(req, res, sendJson);
+
+  if (url === '/api/quality/config' && method === 'POST')
+    return handlePostConfig(req, res, sendJson, parseBody);
+
+  if (url === '/api/quality/config' && method === 'GET')
+    return handleGetConfig(req, res, sendJson);
+
+  if (url === '/api/quality/classify' && method === 'POST') {
+    const payload = requireAuth(req, res); if (!payload) return;
+    return handleClassify(req, res, sendJson, parseBody);
+  }
+
+  sendJson(req, res, 404, { message: 'Not found' });
 });
 
 server.listen(port, () => {

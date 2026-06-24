@@ -28,3 +28,6 @@ frontend/.env
 
 .claude/
 .vscode/
+
+DATA-ROOT/
+data/

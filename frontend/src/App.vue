@@ -169,6 +169,16 @@
           :token="token"
           @changed="fetchInvestments"
         />
+        <ImageClassifier
+          v-else-if="currentView === 'quality'"
+          :api-url="apiUrl"
+          :token="token"
+        />
+        <AirflowMonitor
+          v-else-if="currentView === 'airflow'"
+          :api-url="apiUrl"
+          :token="token"
+        />
       </main>
 
       <!-- Footer -->
@@ -211,6 +221,8 @@ import Dashboard from './components/Dashboard.vue';
 import CalendarView from './components/CalendarView.vue';
 import AIRecommendations from './components/AIRecommendations.vue';
 import PortfolioManager from './components/PortfolioManager.vue';
+import ImageClassifier from './components/ImageClassifier.vue';
+import AirflowMonitor from './components/AirflowMonitor.vue';
 
 type User = { id: number; username: string; displayName: string };
 type Investment = {
@@ -232,15 +244,17 @@ const password = ref('123456');
 const loginError = ref('');
 const loginLoading = ref(false);
 
-const currentView = ref<'dashboard' | 'calendar' | 'ai' | 'portfolio'>('dashboard');
+const currentView = ref<'dashboard' | 'calendar' | 'ai' | 'portfolio' | 'quality' | 'airflow'>('dashboard');
 const investments = ref<Investment[]>([]);
 const events = ref<InvestmentEvent[]>([]);
 
 const navItems = [
-  { id: 'dashboard', icon: 'fa-solid fa-gauge-high',    label: '대시보드' },
-  { id: 'calendar',  icon: 'fa-solid fa-calendar-days', label: '금융 캘린더' },
-  { id: 'ai',        icon: 'fa-solid fa-robot',         label: 'AI 추천' },
-  { id: 'portfolio', icon: 'fa-solid fa-briefcase',     label: '포트폴리오' },
+  { id: 'dashboard', icon: 'fa-solid fa-gauge-high',     label: '대시보드' },
+  { id: 'calendar',  icon: 'fa-solid fa-calendar-days',  label: '금융 캘린더' },
+  { id: 'ai',        icon: 'fa-solid fa-robot',          label: 'AI 추천' },
+  { id: 'portfolio', icon: 'fa-solid fa-briefcase',      label: '포트폴리오' },
+  { id: 'quality',   icon: 'fa-solid fa-shield-halved',  label: '품질 검사' },
+  { id: 'airflow',   icon: 'fa-solid fa-wind',           label: 'Airflow' },
 ] as const;
 
 async function fetchInvestments() {

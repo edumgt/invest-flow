@@ -189,10 +189,18 @@ async function fetchRecommendations() {
       headers: { Authorization: `Bearer ${props.token}` },
     });
 
-    if (!res.ok || !res.body) {
-      const msg = res.body ? (await res.json()).message : `HTTP ${res.status}`;
+    if (!res.ok) {
+      // 서버가 4xx/5xx 를 반환한 경우 — JSON / 텍스트 형식 모두 처리
+      let msg = `서버 오류 (HTTP ${res.status})`;
+      try {
+        const body = await res.json();
+        msg = body.message ?? body.error ?? JSON.stringify(body);
+      } catch {
+        try { msg = (await res.text()) || msg; } catch {}
+      }
       throw new Error(msg);
     }
+    if (!res.body) throw new Error('응답 스트림을 열 수 없습니다.');
 
     const reader  = res.body.getReader();
     const decoder = new TextDecoder();
@@ -203,29 +211,32 @@ async function fetchRecommendations() {
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      // SSE는 \n\n 으로 이벤트를 구분하지만, 청크 경계에서 잘릴 수 있어
-      // \n 단위로 처리하고 마지막 불완전 라인은 buffer 에 보존한다.
       const lines = buffer.split('\n');
       buffer = lines.pop()!;
 
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
-        const event = JSON.parse(line.slice(6));
+
+        let event: { type: string; message?: string; percent?: number; recommendations?: Recommendation[] };
+        try { event = JSON.parse(line.slice(6)); }
+        catch { continue; }  // 파싱 불가 라인 무시
 
         if (event.type === 'progress') {
-          progressPercent.value = event.percent;
-          progressMessage.value = event.message;
+          progressPercent.value = event.percent ?? progressPercent.value;
+          progressMessage.value = event.message ?? '';
         } else if (event.type === 'done') {
           progressPercent.value = 100;
           progressMessage.value = '완료';
           recommendations.value = event.recommendations ?? [];
         } else if (event.type === 'error') {
-          throw new Error(event.message);
+          // 백엔드가 SSE error 이벤트로 보낸 메시지를 그대로 표시
+          throw new Error(event.message ?? '알 수 없는 서버 오류');
         }
       }
     }
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'AI 추천 요청 실패';
+  } catch (err: unknown) {
+    // Error 객체든 문자열이든 모두 message 로 표시
+    error.value = err instanceof Error ? err.message : String(err);
   } finally {
     loading.value = false;
   }
