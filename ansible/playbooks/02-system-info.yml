@@ -1,0 +1,50 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 02-system-info.yml  —  호스트 시스템 정보 수집
+#
+# 실행:  ansible-playbook playbooks/02-system-info.yml
+# ─────────────────────────────────────────────────────────────────────────────
+- name: 시스템 정보 수집
+  hosts: all
+  gather_facts: true
+
+  tasks:
+    - name: 기본 시스템 정보 출력
+      ansible.builtin.debug:
+        msg:
+          - "호스트     : {{ inventory_hostname }}"
+          - "OS         : {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}"
+          - "커널       : {{ ansible_facts['kernel'] }}"
+          - "CPU 코어   : {{ ansible_facts['processor_count'] | default('?') }}"
+          - "메모리     : {{ ((ansible_facts['memtotal_mb'] | default(0)) / 1024) | round(1) }} GB"
+          - "아키텍처   : {{ ansible_facts['architecture'] }}"
+
+    - name: 디스크 사용량 확인
+      ansible.builtin.shell: df -h / | tail -1 | awk '{print "전체:"$2, "사용:"$3, "여유:"$4, "사용률:"$5}'
+      register: disk_result
+      changed_when: false
+
+    - name: 디스크 정보 출력
+      ansible.builtin.debug:
+        msg: "디스크(/) : {{ disk_result.stdout }}"
+
+    - name: 열린 포트 확인
+      ansible.builtin.shell: ss -tlnp | awk 'NR>1 {print $4}' | grep -oP ':\K\d+' | sort -nu | tr '\n' ' '
+      register: ports_result
+      changed_when: false
+
+    - name: 열린 포트 출력
+      ansible.builtin.debug:
+        msg: "열린 포트: {{ ports_result.stdout }}"
+
+    - name: 런타임 버전 수집
+      ansible.builtin.shell: |
+        echo "node=$(node --version 2>/dev/null || echo '미설치')"
+        echo "python=$(python3 --version 2>/dev/null || echo '미설치')"
+        echo "docker=$(docker --version 2>/dev/null | cut -d' ' -f3 | tr -d ',' || echo '미설치')"
+      register: runtime_result
+      changed_when: false
+
+    - name: 런타임 버전 출력
+      ansible.builtin.debug:
+        msg: "{{ runtime_result.stdout_lines }}"

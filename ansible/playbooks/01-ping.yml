@@ -1,0 +1,24 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 01-ping.yml  —  모든 호스트 연결 확인
+#
+# 실행:  ansible-playbook playbooks/01-ping.yml
+#        ansible-playbook playbooks/01-ping.yml -l local     (로컬만)
+#        ansible-playbook playbooks/01-ping.yml -l airflow   (Airflow VM만)
+# ─────────────────────────────────────────────────────────────────────────────
+- name: 호스트 연결 확인 (ping)
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: ping
+      ansible.builtin.ping:
+
+    - name: 현재 사용자 확인
+      ansible.builtin.command: whoami
+      register: whoami_result
+      changed_when: false
+
+    - name: 결과 출력
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} → {{ whoami_result.stdout }} ✓"

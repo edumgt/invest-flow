@@ -1,0 +1,6 @@
+# 모든 호스트 공통 변수
+project_name: invest-flow
+project_root: /home/ubuntu/invest-flow
+
+backend_port: 8301
+node_version: "20"

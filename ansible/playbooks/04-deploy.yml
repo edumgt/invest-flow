@@ -1,0 +1,95 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 04-deploy.yml  —  프론트엔드 빌드 + 백엔드 재시작 (전체 배포)
+#
+# 실행:
+#   ansible-playbook playbooks/04-deploy.yml              (전체)
+#   ansible-playbook playbooks/04-deploy.yml --tags fe    (프론트만)
+#   ansible-playbook playbooks/04-deploy.yml --tags be    (백엔드만)
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Invest Flow 배포
+  hosts: backend
+  gather_facts: false
+  vars:
+    backend_dir:  "{{ project_root }}/backend"
+    frontend_dir: "{{ project_root }}/frontend"
+
+  tasks:
+    # ── 사전 확인 ─────────────────────────────────────────────────────────────
+    - name: 프로젝트 디렉터리 존재 확인
+      ansible.builtin.stat:
+        path: "{{ project_root }}"
+      register: project_stat
+
+    - name: 프로젝트 경로 없으면 중단
+      ansible.builtin.fail:
+        msg: "프로젝트 경로를 찾을 수 없습니다: {{ project_root }}"
+      when: not project_stat.stat.exists
+
+    # ── 프론트엔드 빌드 ───────────────────────────────────────────────────────
+    - name: 프론트엔드 의존성 설치
+      ansible.builtin.command:
+        cmd: npm install --silent
+        chdir: "{{ frontend_dir }}"
+      register: npm_install
+      changed_when: npm_install.rc == 0
+      tags: [fe]
+
+    - name: 프론트엔드 빌드
+      ansible.builtin.command:
+        cmd: npm run build
+        chdir: "{{ frontend_dir }}"
+      register: build_result
+      changed_when: true
+      tags: [fe]
+
+    - name: 빌드 결과 출력
+      ansible.builtin.debug:
+        msg: "{{ build_result.stderr_lines[-3:] }}"
+      when: build_result is defined
+      tags: [fe]
+
+    # ── 백엔드 재시작 ─────────────────────────────────────────────────────────
+    - name: 기존 백엔드 프로세스 중지
+      ansible.builtin.shell: pkill -f 'node.*server.js' || true
+      changed_when: true
+      tags: [be]
+
+    - name: 1초 대기
+      ansible.builtin.pause:
+        seconds: 1
+      tags: [be]
+
+    - name: 백엔드 시작
+      ansible.builtin.shell: |
+        cd {{ backend_dir }}
+        nohup node --env-file .env src/server.js >> /tmp/backend.log 2>&1 &
+        disown
+      changed_when: true
+      tags: [be]
+
+    - name: 2초 대기
+      ansible.builtin.pause:
+        seconds: 2
+      tags: [be]
+
+    # ── 배포 검증 ─────────────────────────────────────────────────────────────
+    - name: 백엔드 헬스체크
+      ansible.builtin.uri:
+        url: "http://localhost:{{ backend_port }}/health"
+        status_code: 200
+        timeout: 5
+      register: health
+      retries: 3
+      delay: 2
+      tags: [be]
+
+    - name: 배포 완료
+      ansible.builtin.debug:
+        msg:
+          - "=================================="
+          - " 배포 완료 ✓"
+          - " 백엔드  : http://localhost:{{ backend_port }}"
+          - " 상태    : {{ health.json }}"
+          - "=================================="
+      tags: [be]

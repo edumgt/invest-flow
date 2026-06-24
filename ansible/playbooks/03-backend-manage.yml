@@ -1,0 +1,82 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 03-backend-manage.yml  —  백엔드 서버 시작 / 중지 / 상태 확인
+#
+# 실행:
+#   ansible-playbook playbooks/03-backend-manage.yml -e "svc_action=status"
+#   ansible-playbook playbooks/03-backend-manage.yml -e "svc_action=start"
+#   ansible-playbook playbooks/03-backend-manage.yml -e "svc_action=stop"
+#   ansible-playbook playbooks/03-backend-manage.yml -e "svc_action=restart"
+# ─────────────────────────────────────────────────────────────────────────────
+- name: 백엔드 서버 관리
+  hosts: backend
+  gather_facts: false
+  vars:
+    svc_action: status                                    # 기본값
+    backend_dir: "{{ project_root }}/backend"
+    pid_check_cmd: "pgrep -f 'node.*server.js' || true"
+
+  tasks:
+    # ── 현재 상태 확인 ────────────────────────────────────────────────────────
+    - name: 백엔드 프로세스 PID 조회
+      ansible.builtin.shell: "{{ pid_check_cmd }}"
+      register: pid_result
+      changed_when: false
+
+    - name: 포트 8301 리스닝 여부 확인
+      ansible.builtin.shell: ss -tlnp | grep ':8301' | head -1 || true
+      register: port_result
+      changed_when: false
+
+    - name: 현재 상태 출력
+      ansible.builtin.debug:
+        msg:
+          - "PID   : {{ pid_result.stdout_lines | join(', ') if pid_result.stdout else '실행 중 아님' }}"
+          - "포트  : {{ '8301 열림 ✓' if ':8301' in port_result.stdout else '닫힘' }}"
+
+    # ── STOP ─────────────────────────────────────────────────────────────────
+    - name: 백엔드 중지
+      ansible.builtin.shell: pkill -f 'node.*server.js' || true
+      when: svc_action in ['stop', 'restart']
+      changed_when: true
+
+    - name: 중지 대기 (1초)
+      ansible.builtin.pause:
+        seconds: 1
+      when: svc_action in ['stop', 'restart']
+
+    # ── START ─────────────────────────────────────────────────────────────────
+    - name: 백엔드 시작
+      ansible.builtin.shell: |
+        cd {{ backend_dir }}
+        nohup node --env-file .env src/server.js > /tmp/backend.log 2>&1 &
+        echo $!
+      when: svc_action in ['start', 'restart']
+      register: start_result
+      changed_when: true
+
+    - name: 시작 대기 (2초)
+      ansible.builtin.pause:
+        seconds: 2
+      when: svc_action in ['start', 'restart']
+
+    - name: 시작 결과 출력
+      ansible.builtin.debug:
+        msg: "백엔드 시작됨 (PID: {{ start_result.stdout }})"
+      when:
+        - svc_action in ['start', 'restart']
+        - start_result is defined
+
+    # ── 헬스체크 ─────────────────────────────────────────────────────────────
+    - name: 헬스체크
+      ansible.builtin.uri:
+        url: "http://localhost:{{ backend_port }}/health"
+        status_code: 200
+      register: health_result
+      when: svc_action in ['start', 'restart', 'status']
+      failed_when: false
+
+    - name: 헬스체크 결과 출력
+      ansible.builtin.debug:
+        msg: "헬스체크: {{ health_result.json | default('연결 실패') }}"
+      when: svc_action in ['start', 'restart', 'status']

@@ -1,0 +1,9 @@
+# Airflow VM 전용 변수
+airflow_home: /home/ubuntu/airflow-invest/airflow
+airflow_dags_dir: /home/ubuntu/airflow-invest/airflow/dags
+airflow_web_port: 8793
+
+# Airflow API 자격증명
+airflow_api_url: "http://192.168.253.149:8793/api/v1"
+airflow_api_user: admin
+airflow_api_pass: admin
