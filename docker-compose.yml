@@ -10,7 +10,6 @@ services:
       CORS_ORIGIN: http://localhost:8302
     volumes:
       - ./backend:/app
-      - /app/node_modules
     ports:
       - "8301:3000"
     networks:

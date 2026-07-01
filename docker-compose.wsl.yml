@@ -32,14 +32,13 @@ services:
       - "host.docker.internal:host-gateway"   # WSL2 → Windows 호스트 접근
     volumes:
       - ./backend:/app
-      - /app/node_modules                      # 컨테이너 내부 node_modules 보존
       - ./DATA-ROOT:/data                      # classify.py 원본 이미지 + 학습 데이터
     ports:
       - "8301:3000"
     networks:
       - invest-net
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 3

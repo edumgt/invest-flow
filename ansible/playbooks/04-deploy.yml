@@ -50,9 +50,30 @@
       tags: [fe]
 
     # ── 백엔드 재시작 ─────────────────────────────────────────────────────────
+    - name: 백엔드 가상환경 존재 확인
+      ansible.builtin.stat:
+        path: "{{ backend_dir }}/.venv/bin/uvicorn"
+      register: backend_venv
+      tags: [be]
+
+    - name: 백엔드 가상환경 생성
+      ansible.builtin.command:
+        cmd: python3 -m venv .venv
+        chdir: "{{ backend_dir }}"
+      when: not backend_venv.stat.exists
+      tags: [be]
+
+    - name: 백엔드 의존성 설치
+      ansible.builtin.command:
+        cmd: .venv/bin/pip install --quiet -r requirements.txt
+        chdir: "{{ backend_dir }}"
+      register: pip_install
+      changed_when: pip_install.rc == 0
+      tags: [be]
+
     - name: 기존 백엔드 프로세스 중지
       ansible.builtin.shell: |
-        pgrep -f '[n]ode --env-file' | xargs -r kill 2>/dev/null
+        pgrep -f '[u]vicorn app.main:app' | xargs -r kill 2>/dev/null
         exit 0
       changed_when: true
       tags: [be]
@@ -65,7 +86,8 @@
     - name: 백엔드 시작
       ansible.builtin.shell: |
         cd {{ backend_dir }}
-        nohup node --env-file .env src/server.js >> /tmp/backend.log 2>&1 &
+        set -a; source .env; set +a
+        nohup .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-{{ backend_port }}}" >> /tmp/backend.log 2>&1 &
         disown
       args:
         executable: /bin/bash

@@ -1,9 +1,10 @@
 # InvestFlow
  
-> **AI 기반 개인 투자 일정 관리 웹앱** — Vue 3 · Node.js · PostgreSQL · Claude AI
+> **AI 기반 개인 투자 일정 관리 웹앱** — Vue 3 · Python (FastAPI) · PostgreSQL · Claude AI
 
 [![Vue 3](https://img.shields.io/badge/Vue-3-42b883?style=flat-square&logo=vue.js)](https://vuejs.org)
-[![Node.js](https://img.shields.io/badge/Node.js-20-green?style=flat-square&logo=node.js)](https://nodejs.org)
+[![Python](https://img.shields.io/badge/Python-3.12-3776ab?style=flat-square&logo=python)](https://www.python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-005f73?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ed?style=flat-square&logo=docker)](docker-compose.yml)
 [![Claude AI](https://img.shields.io/badge/Claude-AI-orange?style=flat-square)](https://anthropic.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
@@ -39,7 +40,7 @@
 | 레이어 | 기술 |
 |--------|------|
 | Frontend | Vue 3 + Vite + TypeScript + Tailwind CSS + TUI Calendar |
-| Backend | Node.js (ESM, no framework) + JWT (HMAC-SHA256) |
+| Backend | Python 3.12 + FastAPI + psycopg2 + JWT (HMAC-SHA256) |
 | Database | PostgreSQL 16 + pgcrypto |
 | AI | Anthropic Claude API (claude-sonnet-4-6) |
 | DevOps | Docker Compose + GitLab CI + Apache Airflow |
@@ -81,8 +82,10 @@ npm run dev
 ```bash
 cd backend
 cp ../.env.example .env
-npm install
-npm run dev
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 3000
 ```
 
 ---

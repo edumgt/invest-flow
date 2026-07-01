@@ -1,4 +1,4 @@
-# GitLab CI/CD Pipeline for Vue + Node.js Calendar App
+# GitLab CI/CD Pipeline for Vue + Python(FastAPI) Calendar App
 # GitLab Runner 에서 실행되는 CI/CD 파이프라인 정의
 #
 # Pipeline stages:
@@ -25,7 +25,6 @@ cache:
   key: "$CI_COMMIT_REF_SLUG"
   paths:
     - node_modules/
-    - backend/node_modules/
 
 stages:
   - build
@@ -52,13 +51,14 @@ build:frontend:
 
 build:backend:
   stage: build
+  image: python:3.12-slim
   script:
     - cd backend
-    - npm ci
-    - echo "Backend build complete (Node.js ESM — no transpile needed)"
+    - pip install --no-cache-dir -r requirements.txt
+    - echo "Backend build complete (FastAPI — no transpile needed)"
   artifacts:
     paths:
-      - backend/src/
+      - backend/app/
     expire_in: 1 hour
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push"'
@@ -81,12 +81,12 @@ test:frontend:
 
 test:backend:
   stage: test
+  image: python:3.12-slim
   script:
     - cd backend
-    - npm ci
-    - node --check src/server.js
-    - node --check src/db.js
-    - node --check src/middleware.js
+    - pip install --no-cache-dir -r requirements.txt
+    - python -m py_compile app/main.py app/db.py app/security.py app/config.py
+    - python -c "from app.main import app; print('FastAPI app import OK')"
     - echo "Backend syntax check passed"
   needs:
     - build:backend

@@ -14,7 +14,7 @@
   vars:
     svc_action: status                                    # 기본값
     backend_dir: "{{ project_root }}/backend"
-    pid_check_cmd: "pgrep -f 'node.*server.js' || true"
+    pid_check_cmd: "pgrep -f 'uvicorn app.main:app' || true"
 
   tasks:
     # ── 현재 상태 확인 ────────────────────────────────────────────────────────
@@ -37,10 +37,10 @@
     # ── STOP ─────────────────────────────────────────────────────────────────
     - name: 백엔드 중지
       ansible.builtin.shell: |
-        # [n]ode 패턴: 실행 중인 bash의 cmdline에 'node'가 포함되면 자기 자신도
+        # [u]vicorn 패턴: 실행 중인 bash의 cmdline에 'uvicorn'이 포함되면 자기 자신도
         # 매칭되어 bash 프로세스가 죽는 문제를 방지한다.
-        # [n]ode 는 'node'에 매칭되지만, 문자 그대로 '[n]ode'는 매칭하지 않는다.
-        pgrep -f '[n]ode --env-file' | xargs -r kill 2>/dev/null
+        # [u]vicorn 은 'uvicorn'에 매칭되지만, 문자 그대로 '[u]vicorn'은 매칭하지 않는다.
+        pgrep -f '[u]vicorn app.main:app' | xargs -r kill 2>/dev/null
         exit 0
       when: svc_action in ['stop', 'restart']
       changed_when: true
@@ -54,8 +54,11 @@
     - name: 백엔드 시작
       ansible.builtin.shell: |
         cd {{ backend_dir }}
-        nohup node --env-file .env src/server.js > /tmp/backend.log 2>&1 &
+        set -a; source .env; set +a
+        nohup .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-{{ backend_port }}}" > /tmp/backend.log 2>&1 &
         echo $!
+      args:
+        executable: /bin/bash
       when: svc_action in ['start', 'restart']
       register: start_result
       changed_when: true
