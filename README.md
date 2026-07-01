@@ -5,7 +5,7 @@
 [![Vue 3](https://img.shields.io/badge/Vue-3-42b883?style=flat-square&logo=vue.js)](https://vuejs.org)
 [![Python](https://img.shields.io/badge/Python-3.12-3776ab?style=flat-square&logo=python)](https://www.python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-005f73?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
-[![Docker](https://img.shields.io/badge/Docker-ready-2496ed?style=flat-square&logo=docker)](docker-compose.yml)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ed?style=flat-square&logo=docker)](docker-compose.local.yml)
 [![Claude AI](https://img.shields.io/badge/Claude-AI-orange?style=flat-square)](https://anthropic.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
@@ -84,21 +84,42 @@
 
 ## 빠른 시작 (Docker)
 
-```bash
-cp .env.example .env
-# .env 에서 ANTHROPIC_API_KEY 입력 (선택 — 없으면 목 데이터로 동작)
+배포 대상에 따라 compose 파일과 env 파일이 나뉘어 있습니다.
 
-docker compose up --build -d
+| 환경 | compose 파일 | env 파일 | 설명 |
+|------|-------------|----------|------|
+| **local** | `docker-compose.local.yml` | `.env.local` | 이 머신의 공유 랩 인프라(shared-net 의 postgres/ollama 컨테이너)를 그대로 사용하는 로컬 Docker 개발 환경 |
+| **office** | `docker-compose.office.yml` | `.env.office` | 사무실 인하우스(VMware 베어메탈 리눅스 호스트) 개발 환경. Postgres/Ollama 는 호스트에 직접 설치, `host.docker.internal` 로 접근. Airflow 는 별도 VM(ansible 로 구축) |
+| **aws** | `docker-compose.aws.yml` | `.env.aws` | AWS EC2 + ALB 환경. Postgres 도 같은 인스턴스에 컨테이너로 포함 (추후 RDS로 교체 가능) |
+
+공통 실행 방법:
+
+```bash
+cp .env.<env>.example .env.<env>   # local / office / aws 중 하나
+docker compose --env-file .env.<env> -f docker-compose.<env>.yml up --build -d
 ```
 
-- **Frontend**: http://localhost:5173
-- **Backend**: http://localhost:3000/health
-
-DB 초기화 후 재시작:
+예) 로컬 개발:
 
 ```bash
-docker compose down -v
-docker compose up --build -d
+cp .env.local.example .env.local
+docker compose --env-file .env.local -f docker-compose.local.yml up --build -d
+```
+
+- **Frontend**: http://localhost:8302
+- **Backend**: http://localhost:8301/health
+
+Airflow까지 같은 호스트에서 함께 띄우려면 (사무실/AWS 에서 실제 운영 Airflow는 별도 호스트에 있는 경우가 많으니 로컬 테스트용):
+
+```bash
+docker compose --env-file .env.<env> -f docker-compose.<env>.yml -f docker-compose.airflow.yml up --build -d
+```
+
+DB 초기화 후 재시작 (Postgres를 컨테이너로 포함하는 환경만 해당, 예: aws):
+
+```bash
+docker compose --env-file .env.aws -f docker-compose.aws.yml down -v
+docker compose --env-file .env.aws -f docker-compose.aws.yml up --build -d
 ```
 
 ---
@@ -116,11 +137,22 @@ npm run dev
 
 ```bash
 cd backend
-cp ../.env.example .env
+cp .env.example .env
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+set -a; source .env; set +a
 uvicorn app.main:app --reload --port 3000
+```
+
+### 3) Backend 테스트
+
+DB·Ollama·Airflow 없이도 동작하는 pytest 스위트 (DB는 fake cursor로, 외부 HTTP 호출은 respx로 목킹):
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest
 ```
 
 ---
@@ -141,7 +173,7 @@ uvicorn app.main:app --reload --port 3000
 사용자 → [AI 추천] 탭 → "AI 분석 시작" 클릭
      → POST /api/ai/recommend
      → 백엔드: DB에서 포트폴리오 조회
-     → Claude API 호출 (ANTHROPIC_API_KEY 미설정 시 목 데이터)
+     → Ollama(OLLAMA_URL/OLLAMA_MODEL) 로 SSE 스트리밍 추론
      → 5개 투자 액션 + 추천 날짜 반환
      → 사용자: 개별 or 전체 "캘린더에 추가"
      → 투자 캘린더에 AI 추천 이벤트 등록
@@ -180,8 +212,8 @@ uvicorn app.main:app --reload --port 3000
 
 ## DevOps (선택)
 
-- **GitLab CI**: `.gitlab-ci.yml` — 빌드·테스트·배포 파이프라인
-- **Airflow**: `docker-compose.airflow.yml` — 정기 파이프라인 트리거
+- **Airflow**: `docker-compose.airflow.yml` — 정기 파이프라인 트리거 (각 환경 compose 파일과 `-f` 로 함께 기동 가능)
+- **GitLab CE**: `docker-compose.gitlab.yml` — 사내 GitLab 서버 자체 구축
 - **이중 Push**: `scripts/setup-dual-remote.sh` — GitHub ↔ GitLab 동기화
 
 

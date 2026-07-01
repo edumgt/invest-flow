@@ -1,0 +1,88 @@
+# docker-compose.aws.yml — AWS Cloud 환경 (EC2 단일 인스턴스, ALB 뒤에 배치)
+#
+# 아직 RDS 등 관리형 DB를 쓰지 않는 전제로, Postgres도 컨테이너로 이 안에서 직접 띄운다.
+# 추후 RDS로 옮길 경우 postgres 서비스를 제거하고 DATABASE_URL만 RDS 엔드포인트로 교체하면 된다.
+#
+# 네트워크 가정:
+#   - EC2 인스턴스 하나에 backend/frontend/postgres 컨테이너가 모두 뜬다
+#   - ALB → Target Group 이 EC2 인스턴스의 8301(backend)/8302(frontend) 포트로 트래픽을 전달
+#   - Ollama(AI 추천)는 GPU가 없는 일반 EC2에서 돌리기 어려우므로, 별도 GPU 인스턴스나
+#     사내망 Ollama를 OLLAMA_URL로 가리키도록 환경변수로 명시해야 한다 (.env.aws 참고)
+#
+# 실행:
+#   docker compose --env-file .env.aws -f docker-compose.aws.yml up --build -d
+#
+# Airflow 도 같은 인스턴스에서 함께 띄우고 싶다면:
+#   docker compose --env-file .env.aws -f docker-compose.aws.yml -f docker-compose.airflow.yml up --build -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: invest_postgres_aws
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-calendar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-calendar123}
+      POSTGRES_DB: ${POSTGRES_DB:-calendar_app}
+    volumes:
+      - aws_postgres_data:/var/lib/postgresql/data
+      - ./backend/sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-calendar}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - aws-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: invest-flow-backend:latest
+    container_name: invest_backend_aws
+    restart: unless-stopped
+    env_file:
+      - .env.aws
+    volumes:
+      - aws_data:/data
+    ports:
+      - "8301:3000"
+    networks:
+      - aws-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: invest-flow-frontend:latest
+    container_name: invest_frontend_aws
+    restart: unless-stopped
+    env_file:
+      - .env.aws
+    ports:
+      - "8302:5173"
+    networks:
+      - aws-net
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  aws_postgres_data:
+  aws_data:
+
+networks:
+  aws-net:
+    name: invest-flow-aws-net
+    driver: bridge

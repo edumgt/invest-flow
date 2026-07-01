@@ -12,7 +12,7 @@
   hosts: local
   gather_facts: false
   vars:
-    compose_file: "{{ project_root }}/docker-compose.wsl.yml"
+    compose_file: "{{ project_root }}/docker-compose.office.yml"
     no_cache: false
 
   tasks:

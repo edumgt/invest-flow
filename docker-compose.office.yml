@@ -1,0 +1,69 @@
+# docker-compose.office.yml — 사무실 인하우스 개발 환경 (VMware 베어메탈 리눅스 호스트)
+#
+# Windows 호스트(VMware) 위에서 GPU(Ollama)는 호스트에서 직접 돌리고,
+# 컨테이너는 host.docker.internal 로 호스트 자원에 접근한다.
+#
+# 주요 특징:
+#   DATABASE_URL : host.docker.internal 로 호스트에 설치된 Postgres 접근
+#   OLLAMA_URL   : host.docker.internal 로 호스트 GPU(Ollama) 접근
+#   AIRFLOW_URL  : 사내 전용 Airflow VM(ansible 로 프로비저닝, 192.168.253.149) 직접 참조
+#                  — 이 compose 파일이 Airflow 를 띄우는 게 아니라 원격 VM 을 프록시만 한다
+#   DATA_ROOT    : 호스트 경로(./DATA-ROOT)를 컨테이너에 마운트
+#
+# 실행:
+#   docker compose --env-file .env.office -f docker-compose.office.yml up --build -d
+#
+# (참고) 로컬에서 Airflow 컨테이너까지 함께 테스트하고 싶다면:
+#   docker compose --env-file .env.office -f docker-compose.office.yml -f docker-compose.airflow.yml up --build -d
+#   — 단, 실제 사내 운영 Airflow 는 ansible-playbook 10-airflow-install.yml 로 전용 VM 에 배포된 것을 사용한다.
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: invest-flow-backend:latest
+    container_name: invest_backend_office
+    restart: unless-stopped
+    env_file:
+      - .env.office
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # WSL2 → Windows 호스트 접근
+    volumes:
+      - ./backend:/app
+      - ./DATA-ROOT:/data
+    ports:
+      - "8301:3000"
+    networks:
+      - office-net
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: invest-flow-frontend:latest
+    container_name: invest_frontend_office
+    restart: unless-stopped
+    env_file:
+      - .env.office
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "8302:5173"
+    networks:
+      - office-net
+    depends_on:
+      backend:
+        condition: service_healthy
+
+networks:
+  office-net:
+    name: invest-flow-office-net
+    driver: bridge

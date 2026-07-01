@@ -1,0 +1,46 @@
+# docker-compose.local.yml — 로컬 Docker 개발 환경
+#
+# 이 머신(WSL2)에서 이미 떠 있는 공유 랩 인프라(shared-net 외부 네트워크의
+# postgres / ollama 컨테이너, edumgt-lab-init/infra 로 기동)를 그대로 사용한다.
+# Postgres/Ollama 를 이 프로젝트 안에 새로 띄우지 않는다.
+#
+# 실행:
+#   docker compose --env-file .env.local -f docker-compose.local.yml up --build -d
+#
+# Airflow 도 함께 로컬에서 띄우고 싶다면 (사무실 환경처럼 별도 VM 없이 테스트할 때):
+#   docker compose --env-file .env.local -f docker-compose.local.yml -f docker-compose.airflow.yml up --build -d
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: invest_backend_local
+    env_file:
+      - .env.local
+    volumes:
+      - ./backend:/app
+      - ./DATA-ROOT:/data
+    ports:
+      - "8301:3000"
+    networks:
+      - shared-net
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: invest_frontend_local
+    depends_on:
+      - backend
+    env_file:
+      - .env.local
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "8302:5173"
+    networks:
+      - shared-net
+
+networks:
+  shared-net:
+    external: true

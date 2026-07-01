@@ -1,6 +1,5 @@
 node_modules
 frontend/node_modules
-backend/node_modules
 
 dist-ssr
 *.local
@@ -23,6 +22,9 @@ airflow/dags/__pycache__/
 
 # Environment files (secrets)
 .env
+.env.local
+.env.office
+.env.aws
 backend/.env
 frontend/.env
 

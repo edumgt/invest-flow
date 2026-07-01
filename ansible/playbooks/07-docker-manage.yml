@@ -21,9 +21,24 @@
   gather_facts: false
   vars:
     svc_action: status
-    compose_file: "{{ project_root }}/docker-compose.wsl.yml"
+    compose_file: "{{ project_root }}/docker-compose.office.yml"
+    env_file: "{{ project_root }}/.env.office"
 
   tasks:
+    # ── env 파일 존재 확인 (backend/frontend 서비스가 env_file 로 참조함) ───────
+    - name: .env.office 존재 확인
+      ansible.builtin.stat:
+        path: "{{ env_file }}"
+      register: env_file_stat
+      when: svc_action in ['start', 'restart']
+
+    - name: .env.office 없으면 중단
+      ansible.builtin.fail:
+        msg: "{{ env_file }} 파일이 없습니다. .env.office.example 을 복사해 값을 채워주세요."
+      when:
+        - svc_action in ['start', 'restart']
+        - not env_file_stat.stat.exists
+
     # ── 현재 상태 조회 ────────────────────────────────────────────────────────
     - name: 컨테이너 현재 상태 조회
       ansible.builtin.shell: |
